@@ -6,19 +6,22 @@ import (
 	"run-tracker-api/internal/strava"
 
 	"github.com/labstack/echo/v4"
+	"go.uber.org/zap"
 )
 
 type (
 	AthleteHandler struct {
 		config        *config.Config
 		stravaService *strava.StravaService
+		logger        *zap.Logger
 	}
 )
 
-func New(cfg *config.Config, stravaService *strava.StravaService) *AthleteHandler {
+func New(cfg *config.Config, stravaService *strava.StravaService, logger *zap.Logger) *AthleteHandler {
 	return &AthleteHandler{
 		config:        cfg,
 		stravaService: stravaService,
+		logger:        logger,
 	}
 }
 
