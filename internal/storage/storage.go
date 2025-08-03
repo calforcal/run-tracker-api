@@ -1,0 +1,154 @@
+package storage
+
+import (
+	"database/sql"
+	"fmt"
+	"run-tracker-api/internal/config"
+	"run-tracker-api/internal/strava"
+	"time"
+
+	_ "github.com/lib/pq"
+	"github.com/pressly/goose"
+	"go.uber.org/zap"
+)
+
+type (
+	Storage struct {
+		cfg    *config.Config
+		db     *sql.DB
+		logger *zap.Logger
+	}
+)
+
+func New(cfg *config.Config, logger *zap.Logger) *Storage {
+	logger.Info("Connecting to database...")
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName)
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		logger.Fatal("error starting database", zap.Error(err))
+	}
+	logger.Info("Pinging database...")
+	err = db.Ping()
+	if err != nil {
+		logger.Fatal("error pinging database", zap.Error(err))
+	}
+	logger.Info("Successfully connected to database")
+
+	// Run goose migrations
+	logger.Info("Running goose migrations...")
+	goose.SetDialect("postgres")
+	migrationsDir := cfg.MigrationsDir
+	if migrationsDir == "" {
+		logger.Fatal("Migrations directory is not set")
+	}
+
+	if err := goose.Up(db, migrationsDir); err != nil {
+		logger.Fatal("error running migrations", zap.Error(err))
+	}
+	logger.Info("Successfully ran goose migrations")
+
+	return &Storage{cfg: cfg, db: db, logger: logger}
+}
+
+func (s *Storage) SaveUser(token *strava.TokenResponse) (User, error) {
+	expiresAt := time.Unix(int64(token.ExpiresAt), 0)
+
+	fmt.Println("TOKENNNNN", token)
+
+	query := `
+		INSERT INTO users 
+		(name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, created_at, updated_at;
+	`
+
+	var user User
+	err := s.db.QueryRow(
+		query,
+		token.Athlete.Firstname+token.Athlete.Lastname,
+		token.Athlete.Username,
+		token.Athlete.ID,
+		token.AccessToken,
+		token.RefreshToken,
+		expiresAt,
+	).Scan(
+		&user.ID,
+		&user.UUID,
+		&user.Name,
+		&user.Username,
+		&user.StravaID,
+		&user.StravaAccessToken,
+		&user.StravaRefreshToken,
+		&user.StravaExpiresAt,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return User{}, fmt.Errorf("error saving user: %w", err)
+	}
+
+	return user, nil
+}
+
+func (s *Storage) GetUserByStravaID(stravaId int64) (User, error) {
+	user := User{}
+	query := `SELECT id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, created_at, updated_at FROM users WHERE strava_id = $1`
+	if err := s.db.QueryRow(query, stravaId).Scan(
+		&user.ID,
+		&user.UUID,
+		&user.Name,
+		&user.Username,
+		&user.StravaID,
+		&user.StravaAccessToken,
+		&user.StravaRefreshToken,
+		&user.StravaExpiresAt,
+		&user.CreatedAt,
+		&user.UpdatedAt); err != nil {
+		return User{}, err
+	}
+
+	return user, nil
+}
+
+func (s *Storage) UpdateUserFromToken(token *strava.TokenResponse) (User, error) {
+	query := `
+		UPDATE users SET
+			name = $1,
+			username = $2,
+			strava_access_token = $3,
+			strava_refresh_token = $4,
+			strava_expires_at = $5,
+			updated_at = NOW()
+		WHERE strava_id = $6
+		RETURNING id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, created_at, updated_at;
+	`
+
+	var user User
+	err := s.db.QueryRow(
+		query,
+		token.Athlete.Firstname+" "+token.Athlete.Lastname,
+		token.Athlete.Username,
+		token.AccessToken,
+		token.RefreshToken,
+		token.ExpiresAt,
+		token.Athlete.ID,
+	).Scan(
+		&user.ID,
+		&user.UUID,
+		&user.Name,
+		&user.Username,
+		&user.StravaID,
+		&user.StravaAccessToken,
+		&user.StravaRefreshToken,
+		&user.StravaExpiresAt,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return User{}, fmt.Errorf("error saving user: %w", err)
+	}
+
+	return user, nil
+}
