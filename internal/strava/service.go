@@ -8,7 +8,6 @@ import (
 	"run-tracker-api/internal/config"
 	"time"
 
-	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
 
@@ -53,9 +52,9 @@ func New(cfg *config.Config, logger *zap.Logger) *StravaService {
 	}
 }
 
-func (s *StravaService) GetAthlete(c echo.Context) (Athlete, error) {
+func (s *StravaService) GetAthlete(accessToken string) (Athlete, error) {
 	req, err := http.NewRequest("GET", "https://www.strava.com/api/v3/athlete", nil)
-	req.Header.Set("Authorization", "Bearer "+s.cfg.StravaAccessToken)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	if err != nil {
 		return Athlete{}, err
 	}

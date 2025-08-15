@@ -5,6 +5,7 @@ import (
 	"run-tracker-api/api/handlers/athlete"
 	"run-tracker-api/api/handlers/auth"
 	"run-tracker-api/api/handlers/home"
+	"run-tracker-api/api/handlers/middleware"
 	authService "run-tracker-api/internal/auth"
 	"run-tracker-api/internal/config"
 	"run-tracker-api/internal/storage"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
+	em "github.com/labstack/echo/v4/middleware"
 	"go.uber.org/zap"
 )
 
@@ -34,14 +36,19 @@ func main() {
 	userService := users.New(config, logger, storage)
 	authService := authService.New(config, logger)
 
+	authMiddleware := middleware.NewAuthMiddleware(config, authService)
+
 	homeHandler := home.New()
-	athleteHandler := athlete.New(config, stravaService, logger)
+	athleteHandler := athlete.New(config, stravaService, userService, logger)
 	authHandler := auth.New(config, stravaService, userService, authService, logger)
 
 	api := e.Group("/api")
+	athlete := api.Group("/athlete")
+
+	athlete.Use(authMiddleware.RunAuthMiddleware())
 
 	api.GET("/home", homeHandler.Home)
-	api.GET("/athlete", athleteHandler.GetAthlete)
+	athlete.GET("", athleteHandler.GetAthlete)
 
 	api.POST("/authorize-user", authHandler.AuthorizeStravaUser)
 
@@ -62,5 +69,10 @@ func main() {
 			return err
 		}
 	})
+	e.Use(em.CORSWithConfig(em.CORSConfig{
+		AllowOrigins: []string{"http://localhost:5173"},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}, // Specify allowed HTTP methods
+	}))
 	e.Logger.Fatal(e.Start(":8000"))
 }

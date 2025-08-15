@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"run-tracker-api/internal/config"
 	"run-tracker-api/internal/storage"
 	"time"
@@ -47,13 +48,23 @@ func (s *AuthService) IssueJwt(user *storage.User) (string, error) {
 }
 
 func (s *AuthService) ParseJWT(tokenStr string) (*CustomClaims, error) {
+	fmt.Printf("Parsing token: %s\n", tokenStr)
+	fmt.Printf("Using secret: %v\n", s.Config.JwtSecret)
+
 	token, err := jwt.ParseWithClaims(tokenStr, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return s.Config.JwtSecret, nil
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		// Convert string to []byte
+		return []byte(s.Config.JwtSecret), nil
 	})
+
+	fmt.Printf("Parse error: %v\n", err)
+	fmt.Printf("Token valid: %v\n", token.Valid)
 
 	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
 		return claims, nil
-	} else {
-		return nil, err
 	}
+
+	return nil, fmt.Errorf("token validation failed: %v", err)
 }
