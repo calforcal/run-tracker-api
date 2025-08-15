@@ -152,3 +152,23 @@ func (s *Storage) UpdateUserFromToken(token *strava.TokenResponse) (User, error)
 
 	return user, nil
 }
+
+func (s *Storage) GetUserByUUID(uuid string) (User, error) {
+	user := User{}
+	query := `SELECT id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, created_at, updated_at FROM users WHERE uuid = $1`
+	if err := s.db.QueryRow(query, uuid).Scan(
+		&user.ID,
+		&user.UUID,
+		&user.Name,
+		&user.Username,
+		&user.StravaID,
+		&user.StravaAccessToken,
+		&user.StravaRefreshToken,
+		&user.StravaExpiresAt,
+		&user.CreatedAt,
+		&user.UpdatedAt); err != nil {
+		return User{}, err
+	}
+
+	return user, nil
+}

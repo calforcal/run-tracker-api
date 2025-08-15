@@ -40,3 +40,11 @@ func (s *UserService) CreateOrUpdateUser(tokenResponse *strava.TokenResponse) (*
 
 	return &user, nil
 }
+
+func (s *UserService) GetUserByUUID(uuid string) (storage.User, error) {
+	user, err := s.storage.GetUserByUUID(uuid)
+	if err != nil {
+		return storage.User{}, err
+	}
+	return user, nil
+}
