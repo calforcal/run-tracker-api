@@ -45,3 +45,20 @@ func (h *AthleteHandler) GetAthlete(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, athlete)
 }
+
+func (h *AthleteHandler) GetAthleteActivities(c echo.Context) error {
+	uuid := c.Get("uuid").(string)
+	user, err := h.userService.GetUserByUUID(uuid)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusBadRequest, "error: error getting user")
+		}
+		c.JSON(http.StatusInternalServerError, err)
+	}
+	activities, err := h.stravaService.GetAthleteActivities(user.StravaAccessToken)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, activities)
+}

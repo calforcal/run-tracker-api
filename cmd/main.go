@@ -46,6 +46,7 @@ func main() {
 	athlete := api.Group("/athlete")
 
 	athlete.Use(authMiddleware.RunAuthMiddleware())
+	athlete.GET("/activities", athleteHandler.GetAthleteActivities)
 
 	api.GET("/home", homeHandler.Home)
 	athlete.GET("", athleteHandler.GetAthlete)

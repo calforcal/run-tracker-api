@@ -75,6 +75,30 @@ func (s *StravaService) GetAthlete(accessToken string) (Athlete, error) {
 	return athlete, nil
 }
 
+func (s *StravaService) GetAthleteActivities(accessToken string) ([]Activity, error) {
+	req, err := http.NewRequest("GET", "https://www.strava.com/api/v3/athlete/activities", nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	if err != nil {
+		return []Activity{}, err
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return []Activity{}, err
+	}
+
+	defer resp.Body.Close()
+
+	jsonDecoder := json.NewDecoder(resp.Body)
+	var activities []Activity
+	err = jsonDecoder.Decode(&activities)
+	if err != nil {
+		return []Activity{}, err
+	}
+
+	return activities, nil
+}
+
 func (s *StravaService) ExchangeCodeForToken(code string) (TokenResponse, error) {
 	clientId := s.cfg.StravaClientID
 	clientSecret := s.cfg.StravaClientSecret
@@ -100,7 +124,6 @@ func (s *StravaService) ExchangeCodeForToken(code string) (TokenResponse, error)
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
 		return TokenResponse{}, err
 	}
-
 
 	return tokenResponse, nil
 }
