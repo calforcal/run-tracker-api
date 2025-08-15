@@ -28,7 +28,6 @@ func (m *AuthMiddleware) RunAuthMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")
-			fmt.Println("BEARER TOKIE", authHeader)
 			if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 				return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Missing or invalid token"})
 			}

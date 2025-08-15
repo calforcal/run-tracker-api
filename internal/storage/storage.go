@@ -53,8 +53,6 @@ func New(cfg *config.Config, logger *zap.Logger) *Storage {
 func (s *Storage) SaveUser(token *strava.TokenResponse) (User, error) {
 	expiresAt := time.Unix(int64(token.ExpiresAt), 0)
 
-	fmt.Println("TOKENNNNN", token)
-
 	query := `
 		INSERT INTO users 
 		(name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at)

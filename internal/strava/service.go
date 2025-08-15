@@ -94,17 +94,13 @@ func (s *StravaService) ExchangeCodeForToken(code string) (TokenResponse, error)
 		return TokenResponse{}, err
 	}
 
-	fmt.Println("WHOLE RESPONSE", resp)
-
-	fmt.Println("ERRRIE", err)
 	defer resp.Body.Close()
 
 	var tokenResponse TokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
 		return TokenResponse{}, err
 	}
-	fmt.Println("ERRRIE", err)
-	fmt.Println("ERRRIE TOKEI", tokenResponse)
+
 
 	return tokenResponse, nil
 }
