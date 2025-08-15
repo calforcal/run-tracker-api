@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 	"run-tracker-api/internal/auth"
 	"run-tracker-api/internal/config"
