@@ -99,6 +99,30 @@ func (s *StravaService) GetAthleteActivities(accessToken string) ([]Activity, er
 	return activities, nil
 }
 
+func (s *StravaService) GetDetailedActivity(activityId string, accessToken string) (DetailedActivity, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://www.strava.com/api/v3/activities/%s", activityId), nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	if err != nil {
+		return DetailedActivity{}, err
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return DetailedActivity{}, err
+	}
+
+	defer resp.Body.Close()
+
+	jsonDecoder := json.NewDecoder(resp.Body)
+	var activity DetailedActivity
+	err = jsonDecoder.Decode(&activity)
+	if err != nil {
+		return DetailedActivity{}, err
+	}
+
+	return activity, nil
+}
+
 func (s *StravaService) ExchangeCodeForToken(code string) (TokenResponse, error) {
 	clientId := s.cfg.StravaClientID
 	clientSecret := s.cfg.StravaClientSecret

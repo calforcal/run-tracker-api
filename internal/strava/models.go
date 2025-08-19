@@ -115,3 +115,56 @@ type Activity struct {
 	HasKudoed            bool            `json:"has_kudoed"`
 	SufferScore          *float64        `json:"suffer_score"`
 }
+
+type PolylineMap struct {
+	ActivityMap
+	Polyline string `json:"polyline"`
+}
+
+type DetailedActivity struct {
+	ID                 int64       `json:"id"`
+	ExternalID         string      `json:"external_id"`
+	UploadID           int64       `json:"upload_id"`
+	Name               string      `json:"name"`
+	Distance           float64     `json:"distance"`
+	MovingTime         int         `json:"moving_time"`
+	ElapsedTime        int         `json:"elapsed_time"`
+	TotalElevationGain float64     `json:"total_elevation_gain"`
+	ElevHigh           float64     `json:"elev_high"`
+	ElevLow            float64     `json:"elev_low"`
+	Type               string      `json:"type"`       // deprecated, prefer SportType
+	SportType          string      `json:"sport_type"` // could be enum if you want
+	StartDate          string      `json:"start_date"`
+	StartDateLocal     string      `json:"start_date_local"`
+	Timezone           string      `json:"timezone"`
+	StartLatLng        []float64   `json:"start_latlng"`
+	EndLatLng          []float64   `json:"end_latlng"`
+	AchievementCount   int         `json:"achievement_count"`
+	KudosCount         int         `json:"kudos_count"`
+	CommentCount       int         `json:"comment_count"`
+	AthleteCount       int         `json:"athlete_count"`
+	PhotoCount         int         `json:"photo_count"`
+	TotalPhotoCount    int         `json:"total_photo_count"`
+	Map                PolylineMap `json:"map"`
+	Trainer            bool        `json:"trainer"`
+	Commute            bool        `json:"commute"`
+	Manual             bool        `json:"manual"`
+	Private            bool        `json:"private"`
+	Flagged            bool        `json:"flagged"`
+	WorkoutType        int         `json:"workout_type"`
+	UploadIDStr        string      `json:"upload_id_str"`
+	AverageSpeed       float64     `json:"average_speed"`
+	MaxSpeed           float64     `json:"max_speed"`
+	HasKudoed          bool        `json:"has_kudoed"`
+	HideFromHome       bool        `json:"hide_from_home"`
+	GearID             string      `json:"gear_id"`
+	Kilojoules         float64     `json:"kilojoules"`
+	AverageWatts       float64     `json:"average_watts"`
+	DeviceWatts        bool        `json:"device_watts"`
+	MaxWatts           int         `json:"max_watts"`
+	WeightedAvgWatts   int         `json:"weighted_average_watts"`
+	Description        string
+	Calories           float64 `json:"calories"`
+	DeviceName         string  `json:"device_name"`
+	EmbedToken         string  `json:"embed_token"`
+}
