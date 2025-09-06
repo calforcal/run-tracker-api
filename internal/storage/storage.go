@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"run-tracker-api/internal/config"
+	"run-tracker-api/internal/spotify"
 	"run-tracker-api/internal/strava"
 	"time"
 
@@ -153,7 +154,7 @@ func (s *Storage) UpdateUserFromToken(token *strava.TokenResponse) (User, error)
 
 func (s *Storage) GetUserByUUID(uuid string) (User, error) {
 	user := User{}
-	query := `SELECT id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, created_at, updated_at FROM users WHERE uuid = $1`
+	query := `SELECT id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, spotify_id, spotify_access_token, spotify_expires_at, spotify_refresh_token, created_at, updated_at FROM users WHERE uuid = $1`
 	if err := s.db.QueryRow(query, uuid).Scan(
 		&user.ID,
 		&user.UUID,
@@ -163,9 +164,160 @@ func (s *Storage) GetUserByUUID(uuid string) (User, error) {
 		&user.StravaAccessToken,
 		&user.StravaRefreshToken,
 		&user.StravaExpiresAt,
+		&user.SpotifyID,
+		&user.SpotifyAccessToken,
+		&user.SpotifyExpiresAt,
+		&user.SpotifyRefreshToken,
 		&user.CreatedAt,
 		&user.UpdatedAt); err != nil {
 		return User{}, err
+	}
+
+	return user, nil
+}
+
+func (s *Storage) GetUserBySpotifyID(spotifyID string) (User, error) {
+	var user User
+	query := `SELECT id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, spotify_id, spotify_access_token, spotify_expires_at, spotify_refresh_token, created_at, updated_at FROM users WHERE spotify_id = $1`
+	if err := s.db.QueryRow(query, spotifyID).Scan(
+		&user.ID,
+		&user.UUID,
+		&user.Name,
+		&user.Username,
+		&user.StravaID,
+		&user.StravaAccessToken,
+		&user.StravaRefreshToken,
+		&user.StravaExpiresAt,
+		&user.SpotifyID,
+		&user.SpotifyAccessToken,
+		&user.SpotifyExpiresAt,
+		&user.SpotifyRefreshToken,
+		&user.CreatedAt,
+		&user.UpdatedAt); err != nil {
+		return User{}, err
+	}
+	return user, nil
+}
+
+func (s *Storage) SaveSpotifyUser(tokenResponse spotify.TokenResponse, spotifyID string) (User, error) {
+	expiresAt := time.Now().Add(time.Duration(tokenResponse.ExpiresIn))
+
+	query := `
+		INSERT INTO users
+		(spotify_id, spotify_access_token, spotify_refresh_token, spotify_expires_at)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, spotify_id, spotify_access_token, spotify_refresh_token, spotify_expires_at, created_at, updated_at;
+		`
+
+	var user User
+	err := s.db.QueryRow(
+		query,
+		spotifyID,
+		tokenResponse.AccessToken,
+		tokenResponse.RefreshToken,
+		expiresAt,
+	).Scan(
+		&user.ID,
+		&user.UUID,
+		&user.Name,
+		&user.Username,
+		&user.StravaID,
+		&user.StravaAccessToken,
+		&user.StravaRefreshToken,
+		&user.StravaExpiresAt,
+		&user.SpotifyID,
+		&user.SpotifyAccessToken,
+		&user.SpotifyRefreshToken,
+		&user.SpotifyExpiresAt,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return User{}, fmt.Errorf("error saving user: %w", err)
+	}
+
+	return user, nil
+}
+
+func (s *Storage) UpdateSpotifyUser(tokenResponse spotify.TokenResponse, spotifyID string) (User, error) {
+	expiresAt := time.Now().Add(time.Duration(tokenResponse.ExpiresIn)).Unix()
+
+	query :=
+		`
+			UPDATE users
+			SET spotify_access_token = $1, spotify_refresh_token = $2, spotify_expires_at = $3
+			WHERE spotify_id = $4
+			RETURNING id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, spotify_id, spotify_access_token, spotify_refresh_token, spotify_expires_at, created_at, updated_at;
+		`
+	var user User
+	err := s.db.QueryRow(
+		query,
+		tokenResponse.AccessToken,
+		tokenResponse.RefreshToken,
+		expiresAt,
+		spotifyID,
+	).Scan(
+		&user.ID,
+		&user.UUID,
+		&user.Name,
+		&user.Username,
+		&user.StravaID,
+		&user.StravaAccessToken,
+		&user.StravaRefreshToken,
+		&user.StravaExpiresAt,
+		&user.SpotifyID,
+		&user.SpotifyAccessToken,
+		&user.SpotifyRefreshToken,
+		&user.SpotifyExpiresAt,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return User{}, fmt.Errorf("error saving user: %w", err)
+	}
+
+	return user, nil
+}
+
+func (s *Storage) AddSpotifyToStravaUser(tokenResponse spotify.TokenResponse, spotifyID string, uuid string) (User, error) {
+	expiresAt := time.Now().Add(time.Duration(tokenResponse.ExpiresIn) * time.Second).Unix()
+
+	query := `
+		UPDATE users
+		SET spotify_id = $1, spotify_access_token = $2, spotify_refresh_token = $3, spotify_expires_at = $4
+		WHERE uuid = $5
+		RETURNING id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, spotify_id, spotify_access_token, spotify_refresh_token, spotify_expires_at, created_at, updated_at;
+		`
+
+	var user User
+	err := s.db.QueryRow(
+		query,
+		spotifyID,
+		tokenResponse.AccessToken,
+		tokenResponse.RefreshToken,
+		expiresAt,
+		uuid,
+	).Scan(
+		&user.ID,
+		&user.UUID,
+		&user.Name,
+		&user.Username,
+		&user.StravaID,
+		&user.StravaAccessToken,
+		&user.StravaRefreshToken,
+		&user.StravaExpiresAt,
+		&user.SpotifyID,
+		&user.SpotifyAccessToken,
+		&user.SpotifyRefreshToken,
+		&user.SpotifyExpiresAt,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return User{}, fmt.Errorf("error saving user: %w", err)
 	}
 
 	return user, nil

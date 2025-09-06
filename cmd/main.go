@@ -6,8 +6,10 @@ import (
 	"run-tracker-api/api/handlers/auth"
 	"run-tracker-api/api/handlers/home"
 	"run-tracker-api/api/handlers/middleware"
+	"run-tracker-api/api/handlers/user"
 	authService "run-tracker-api/internal/auth"
 	"run-tracker-api/internal/config"
+	"run-tracker-api/internal/spotify"
 	"run-tracker-api/internal/storage"
 	"run-tracker-api/internal/strava"
 	"run-tracker-api/internal/users"
@@ -33,17 +35,24 @@ func main() {
 	storage := storage.New(config, logger)
 
 	stravaService := strava.New(config, logger)
-	userService := users.New(config, logger, storage)
+	spotifyService := spotify.New(config, logger)
+	userService := users.New(config, logger, storage, spotifyService)
 	authService := authService.New(config, logger)
 
 	authMiddleware := middleware.NewAuthMiddleware(config, authService)
 
 	homeHandler := home.New()
 	athleteHandler := athlete.New(config, stravaService, userService, logger)
-	authHandler := auth.New(config, stravaService, userService, authService, logger)
+	authHandler := auth.New(config, stravaService, spotifyService, userService, authService, logger)
+	userHandler := user.New(config, spotifyService, userService, logger)
 
 	api := e.Group("/api")
 	athlete := api.Group("/athlete")
+	user := api.Group("/users")
+
+	user.Use(authMiddleware.RunAuthMiddleware())
+
+	user.GET("/listening-history", userHandler.GetListeningHistory)
 
 	athlete.Use(authMiddleware.RunAuthMiddleware())
 	athlete.GET("/activities", athleteHandler.GetAthleteActivities)
@@ -52,8 +61,10 @@ func main() {
 	api.GET("/home", homeHandler.Home)
 	athlete.GET("", athleteHandler.GetAthlete)
 
-	api.POST("/authorize-user", authHandler.AuthorizeStravaUser)
+	api.POST("/strava/authorize-user", authHandler.AuthorizeStravaUser)
+	api.POST("/spotify/authorize-user", authHandler.AuthorizeSpotifyUser)
 
+	e.Use(em.Recover())
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			req := c.Request()
@@ -72,7 +83,7 @@ func main() {
 		}
 	})
 	e.Use(em.CORSWithConfig(em.CORSConfig{
-		AllowOrigins: []string{"http://localhost:5173"},
+		AllowOrigins: []string{"http://localhost:5173", "http://127.0.0.1:5173"},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}, // Specify allowed HTTP methods
 	}))

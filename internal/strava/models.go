@@ -46,6 +46,7 @@ type (
 		Weight                float64       `json:"weight"`
 		Bikes                 []Bike        `json:"bikes"`
 		Shoes                 []Shoe        `json:"shoes"`
+		IsSpotifyConnected    *bool         `json:"is_spotify_connected"`
 	}
 
 	Activities struct {

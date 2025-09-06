@@ -56,9 +56,13 @@ func (s *AuthService) ParseJWT(tokenStr string) (*CustomClaims, error) {
 		return []byte(s.Config.JwtSecret), nil
 	})
 
+	if err != nil {
+		return nil, fmt.Errorf("token parsing failed: %v", err)
+	}
+
 	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
 		return claims, nil
 	}
 
-	return nil, fmt.Errorf("token validation failed: %v", err)
+	return nil, fmt.Errorf("token validation failed")
 }

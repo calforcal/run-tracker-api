@@ -54,7 +54,7 @@ func New(cfg *config.Config, logger *zap.Logger) *StravaService {
 
 func (s *StravaService) GetAthlete(accessToken string) (Athlete, error) {
 	req, err := http.NewRequest("GET", "https://www.strava.com/api/v3/athlete", nil)
-	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 	if err != nil {
 		return Athlete{}, err
 	}
