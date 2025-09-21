@@ -25,6 +25,14 @@ func New(cfg *config.Config, logger *zap.Logger, storage *storage.Storage, spoti
 	return &UserService{cfg: cfg, logger: logger, storage: storage, spotifyService: spotifyService}
 }
 
+func (s *UserService) CreateUser(tokenResponse *strava.TokenResponse) (*storage.User, error) {
+	user, err := s.storage.SaveUser(tokenResponse)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (s *UserService) CreateOrUpdateUser(tokenResponse *strava.TokenResponse) (*storage.User, error) {
 	user, err := s.storage.GetUserByStravaID(tokenResponse.Athlete.ID)
 	if err != nil {

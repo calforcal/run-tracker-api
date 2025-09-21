@@ -15,6 +15,8 @@ type (
 		Config *config.Config
 		Logger *zap.Logger
 	}
+
+	Scopes string
 )
 
 func New(cfg *config.Config, logger *zap.Logger) *AuthService {
@@ -27,9 +29,20 @@ func New(cfg *config.Config, logger *zap.Logger) *AuthService {
 func (s *AuthService) IssueJwt(user *storage.User) (string, error) {
 	secret := s.Config.JwtSecret
 
+	var scopes string
+	fmt.Println("ISSUE JWT spot Id: ", *user.SpotifyID)
+	if user.StravaID != 0 && user.SpotifyID != nil {
+		scopes = "strava spotify"
+	} else if user.StravaID != 0 {
+		scopes = "strava"
+	} else {
+		return "", fmt.Errorf("invalid user state")
+	}
+
 	claims := CustomClaims{
-		UUID: user.UUID,
-		Name: user.Name,
+		UUID:   user.UUID,
+		Name:   user.Name,
+		Scopes: scopes,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 5)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

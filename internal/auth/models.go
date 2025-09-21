@@ -4,8 +4,9 @@ import "github.com/golang-jwt/jwt/v5"
 
 type (
 	CustomClaims struct {
-		UUID string `json:"uuid"`
-		Name string `json:"name"`
+		UUID   string `json:"uuid"`
+		Name   string `json:"name"`
+		Scopes string `json:"scopes"`
 		jwt.RegisteredClaims
 	}
 )

@@ -52,13 +52,20 @@ func New(cfg *config.Config, logger *zap.Logger) *Storage {
 }
 
 func (s *Storage) SaveUser(token *strava.TokenResponse) (User, error) {
-	expiresAt := time.Unix(int64(token.ExpiresAt), 0)
-
-	query := `
+	query :=
+		`
 		INSERT INTO users 
 		(name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, created_at, updated_at;
+		ON CONFLICT (strava_id) 
+		DO UPDATE SET
+				name = EXCLUDED.name,
+				username = EXCLUDED.username,
+				strava_access_token = EXCLUDED.strava_access_token,
+				strava_refresh_token = EXCLUDED.strava_refresh_token,
+				strava_expires_at = EXCLUDED.strava_expires_at,
+				updated_at = NOW()
+		RETURNING id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, spotify_id, spotify_access_token, spotify_expires_at, spotify_refresh_token, created_at, updated_at;
 	`
 
 	var user User
@@ -69,7 +76,7 @@ func (s *Storage) SaveUser(token *strava.TokenResponse) (User, error) {
 		token.Athlete.ID,
 		token.AccessToken,
 		token.RefreshToken,
-		expiresAt,
+		token.ExpiresAt,
 	).Scan(
 		&user.ID,
 		&user.UUID,
@@ -79,6 +86,10 @@ func (s *Storage) SaveUser(token *strava.TokenResponse) (User, error) {
 		&user.StravaAccessToken,
 		&user.StravaRefreshToken,
 		&user.StravaExpiresAt,
+		&user.SpotifyID,
+		&user.SpotifyAccessToken,
+		&user.SpotifyExpiresAt,
+		&user.SpotifyRefreshToken,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)

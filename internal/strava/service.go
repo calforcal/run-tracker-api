@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"run-tracker-api/internal/config"
 	"time"
@@ -144,9 +146,23 @@ func (s *StravaService) ExchangeCodeForToken(code string) (TokenResponse, error)
 
 	defer resp.Body.Close()
 
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return TokenResponse{}, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Check for non-2xx status codes
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// Log the failed response
+		log.Printf("Strava API error - Status: %d, Body: %s", resp.StatusCode, string(body))
+		return TokenResponse{}, fmt.Errorf("strava API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
 	var tokenResponse TokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
-		return TokenResponse{}, err
+	if err := json.Unmarshal(body, &tokenResponse); err != nil {
+		log.Printf("Failed to decode Strava response - Body: %s", string(body))
+		return TokenResponse{}, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	return tokenResponse, nil
