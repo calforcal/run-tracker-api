@@ -46,6 +46,53 @@ func New(cfg *config.Config, stravaService *strava.StravaService, spotifyService
 	}
 }
 
+func (h *AuthHandler) Login(c echo.Context) error {
+	var req ExchangeCodeForTokenRequest
+	if err := c.Bind(&req); err != nil {
+		h.logger.Info("missing code from request: %s", zap.Error(err))
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
+
+	tokenResponse, err := h.exchangeCodeForToken(req)
+	if err != nil {
+		h.logger.Info("failed to exchange code for token: %d", zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to exchange code for token"})
+	}
+
+	user, err := h.userService.CreateOrUpdateUser(tokenResponse)
+	if err != nil {
+		h.logger.Info("failed to create or upsert user: %d", zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, "error authorizing user")
+	}
+
+	// Refresh Spotify token
+	if user.SpotifyID != nil {
+		tokenResponse, err := h.spotifyService.RefreshToken(*user.SpotifyRefreshToken)
+		fmt.Println("token is fucked   ", err)
+		if err != nil {
+			h.logger.Error("failed to refresh spotify token", zap.Error(err))
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to refresh token"})
+		}
+
+		fmt.Println("token is fucked  response  ", tokenResponse)
+
+		updatedUser, err := h.userService.UpdateSpotifyUser(user, &tokenResponse)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error updating user"})
+		}
+		user = updatedUser
+	}
+
+	fmt.Println("USIE", user)
+	token, err := h.authService.IssueJwt(user)
+	if err != nil {
+		h.logger.Info("failed to issue new jwt: %d", zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to authorize user"})
+	}
+
+	return c.JSON(http.StatusOK, Token{AccessToken: token})
+}
+
 func (h *AuthHandler) AuthorizeStravaUser(c echo.Context) error {
 	var req ExchangeCodeForTokenRequest
 	if err := c.Bind(&req); err != nil {
@@ -59,7 +106,7 @@ func (h *AuthHandler) AuthorizeStravaUser(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to exchange code for token"})
 	}
 
-	user, err := h.userService.CreateUser(tokenResponse)
+	user, err := h.userService.CreateOrUpdateUser(tokenResponse)
 	if err != nil {
 		h.logger.Info("failed to create or upsert user: %d", zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, "error authorizing user")

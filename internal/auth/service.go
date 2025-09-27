@@ -30,7 +30,6 @@ func (s *AuthService) IssueJwt(user *storage.User) (string, error) {
 	secret := s.Config.JwtSecret
 
 	var scopes string
-	fmt.Println("ISSUE JWT spot Id: ", *user.SpotifyID)
 	if user.StravaID != 0 && user.SpotifyID != nil {
 		scopes = "strava spotify"
 	} else if user.StravaID != 0 {
@@ -44,7 +43,7 @@ func (s *AuthService) IssueJwt(user *storage.User) (string, error) {
 		Name:   user.Name,
 		Scopes: scopes,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 5)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute * 60)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "run-tracker",
 		},

@@ -61,6 +61,7 @@ func main() {
 	api.GET("/home", homeHandler.Home)
 	athlete.GET("", athleteHandler.GetAthlete)
 
+	api.POST("/login", authHandler.Login)
 	api.POST("/strava/authorize-user", authHandler.AuthorizeStravaUser)
 	api.POST("/spotify/authorize-user", authHandler.AuthorizeSpotifyUser)
 

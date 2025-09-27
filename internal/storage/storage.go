@@ -257,15 +257,14 @@ func (s *Storage) UpdateSpotifyUser(tokenResponse spotify.TokenResponse, spotify
 	query :=
 		`
 			UPDATE users
-			SET spotify_access_token = $1, spotify_refresh_token = $2, spotify_expires_at = $3
-			WHERE spotify_id = $4
+			SET spotify_access_token = $1, spotify_expires_at = $2
+			WHERE spotify_id = $3
 			RETURNING id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, spotify_id, spotify_access_token, spotify_refresh_token, spotify_expires_at, created_at, updated_at;
 		`
 	var user User
 	err := s.db.QueryRow(
 		query,
 		tokenResponse.AccessToken,
-		tokenResponse.RefreshToken,
 		expiresAt,
 		spotifyID,
 	).Scan(

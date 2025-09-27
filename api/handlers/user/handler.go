@@ -6,7 +6,6 @@ import (
 	"run-tracker-api/internal/config"
 	"run-tracker-api/internal/spotify"
 	"run-tracker-api/internal/users"
-	"time"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -51,34 +50,29 @@ func (h *UserHandler) GetListeningHistory(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "error getting user"})
 	}
 
-	if user.SpotifyExpiresAt != nil && *user.SpotifyExpiresAt < time.Now().Unix() {
-		h.logger.Info("token is expired")
+	// if user.SpotifyExpiresAt != nil && *user.SpotifyExpiresAt < time.Now().Unix() {
+	// 	h.logger.Info("token is expired")
 
-		tokenResponse, err := h.spotifyService.RefreshToken(*user.SpotifyRefreshToken)
-		fmt.Println("token is fucked   ", err)
-		if err != nil {
-			h.logger.Error("failed to refresh spotify token", zap.Error(err))
-			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to refresh token"})
-		}
+	// 	tokenResponse, err := h.spotifyService.RefreshToken(*user.SpotifyRefreshToken)
+	// 	fmt.Println("token is fucked   ", err)
+	// 	if err != nil {
+	// 		h.logger.Error("failed to refresh spotify token", zap.Error(err))
+	// 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to refresh token"})
+	// 	}
 
-		fmt.Println("token is fucked  response  ", tokenResponse)
+	// 	fmt.Println("token is fucked  response  ", tokenResponse)
 
-		updatedUser, err := h.userService.UpdateSpotifyUser(&user, &tokenResponse)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error updating user"})
-		}
-		user = *updatedUser
-	}
-
-	fmt.Println("before: ", params.Before)
-	fmt.Println("after: ", params.After)
+	// 	updatedUser, err := h.userService.UpdateSpotifyUser(&user, &tokenResponse)
+	// 	if err != nil {
+	// 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error updating user"})
+	// 	}
+	// 	user = *updatedUser
+	// }
 
 	latestTracks, err := h.spotifyService.GetListeningHistory(*user.SpotifyAccessToken, params.Before)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error getting latest tracks"})
 	}
-
-	fmt.Println("TRACKS ", latestTracks.Items)
 
 	return c.JSON(http.StatusOK, latestTracks)
 }

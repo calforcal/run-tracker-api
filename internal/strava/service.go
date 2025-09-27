@@ -130,7 +130,7 @@ func (s *StravaService) ExchangeCodeForToken(code string) (TokenResponse, error)
 	clientSecret := s.cfg.StravaClientSecret
 
 	url := fmt.Sprintf(
-		"https://www.strava.com/oauth/token?client_id=%s&client_secret=%s&code=%s&grant_type=authorization_code",
+		"https://www.strava.com/api/v3/oauth/token?client_id=%s&client_secret=%s&code=%s&grant_type=authorization_code",
 		clientId, clientSecret, code,
 	)
 

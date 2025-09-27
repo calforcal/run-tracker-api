@@ -121,7 +121,6 @@ func (s *SpotifyService) GetListeningHistory(accessToken string, before int64) (
 	if len(params) > 0 {
 		fullURL += "?" + params.Encode()
 	}
-	fmt.Println("URL:  ", fullURL)
 
 	req, err := http.NewRequest("GET", fullURL, nil)
 	if err != nil {
@@ -144,9 +143,6 @@ func (s *SpotifyService) GetListeningHistory(accessToken string, before int64) (
 		s.logger.Error("Failed to read response body", zap.Error(err))
 		return ListeningHistory{}, err
 	}
-
-	// Print raw response
-	fmt.Println("RAW SPOTIFY RESPONSE:", string(bodyBytes))
 
 	var listeningHistory ListeningHistory
 	if err := json.Unmarshal(bodyBytes, &listeningHistory); err != nil {
@@ -186,12 +182,23 @@ func (s *SpotifyService) RefreshToken(refreshToken string) (TokenResponse, error
 	}
 	defer resp.Body.Close()
 
-	var tokenResponse TokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
-		return TokenResponse{}, err
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return TokenResponse{}, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	fmt.Println("REFRESH RESPONSE ", tokenResponse)
+	if resp.StatusCode != http.StatusOK {
+		return TokenResponse{}, fmt.Errorf("spotify returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResponse TokenResponse
+	if err := json.Unmarshal(body, &tokenResponse); err != nil {
+		return TokenResponse{}, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if tokenResponse.AccessToken == "" {
+		return TokenResponse{}, fmt.Errorf("spotify returned empty access token")
+	}
 
 	return tokenResponse, nil
 }
