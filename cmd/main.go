@@ -7,6 +7,7 @@ import (
 	"run-tracker-api/api/handlers/home"
 	"run-tracker-api/api/handlers/middleware"
 	"run-tracker-api/api/handlers/user"
+	"run-tracker-api/api/handlers/webhooks"
 	authService "run-tracker-api/internal/auth"
 	"run-tracker-api/internal/config"
 	"run-tracker-api/internal/spotify"
@@ -46,9 +47,18 @@ func main() {
 	authHandler := auth.New(config, stravaService, spotifyService, userService, authService, logger)
 	userHandler := user.New(config, spotifyService, userService, logger)
 
+	wh := webhooks.New(config, userService, spotifyService, storage, logger)
+
 	api := e.Group("/api")
+
+	webhook := api.Group("/webhooks")
 	athlete := api.Group("/athlete")
 	user := api.Group("/users")
+
+	webhook.GET("/strava", wh.VerifyWebhookCallback)
+	webhook.POST("/strava", wh.CreateWebhook)
+	webhook.DELETE("/strava", wh.DeleteWebhook)
+	webhook.GET("/strava/view", wh.GetWebhook)
 
 	user.Use(authMiddleware.RunAuthMiddleware())
 
