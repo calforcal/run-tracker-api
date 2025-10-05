@@ -14,6 +14,7 @@ import (
 	"run-tracker-api/internal/storage"
 	"run-tracker-api/internal/strava"
 	"run-tracker-api/internal/users"
+	whs "run-tracker-api/internal/webhooks"
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
@@ -39,6 +40,7 @@ func main() {
 	spotifyService := spotify.New(config, logger)
 	userService := users.New(config, logger, storage, spotifyService)
 	authService := authService.New(config, logger)
+	webhookService := whs.New(config, logger, spotifyService, storage, userService)
 
 	authMiddleware := middleware.NewAuthMiddleware(config, authService)
 
@@ -47,7 +49,7 @@ func main() {
 	authHandler := auth.New(config, stravaService, spotifyService, userService, authService, logger)
 	userHandler := user.New(config, spotifyService, userService, logger)
 
-	wh := webhooks.New(config, userService, spotifyService, storage, logger)
+	wh := webhooks.New(config, logger, webhookService)
 
 	api := e.Group("/api")
 
