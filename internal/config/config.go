@@ -15,6 +15,7 @@ type Config struct {
 	DBName              string
 	MigrationsDir       string
 	JwtSecret           string
+	WebhookToken        string
 }
 
 func New() *Config {
@@ -31,5 +32,6 @@ func New() *Config {
 		DBName:              os.Getenv("DB_NAME"),
 		MigrationsDir:       os.Getenv("GOOSE_MIGRATION_DIR"),
 		JwtSecret:           os.Getenv("JWT_SECRET"),
+		WebhookToken:        os.Getenv("WEBHOOK_TOKEN"),
 	}
 }
