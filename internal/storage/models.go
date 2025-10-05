@@ -17,4 +17,10 @@ type (
 		CreatedAt           string
 		UpdatedAt           string
 	}
+
+	WebhookSubscription struct {
+		ID          int
+		StravaID    int
+		CallbackURL string
+	}
 )

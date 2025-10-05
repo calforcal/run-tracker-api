@@ -332,3 +332,46 @@ func (s *Storage) AddSpotifyToStravaUser(tokenResponse spotify.TokenResponse, sp
 
 	return user, nil
 }
+
+func (s *Storage) CreateWebhookSubscription(stravaID int, callbackURL string) (WebhookSubscription, error) {
+	query := `INSERT INTO webhook_subscriptions (strava_id, callback_url) VALUES ($1, $2) RETURNING id, strava_id, callback_url`
+
+	var webhookSubscription WebhookSubscription
+	err := s.db.QueryRow(query, stravaID, callbackURL).Scan(
+		&webhookSubscription.ID,
+		&webhookSubscription.StravaID,
+		&webhookSubscription.CallbackURL,
+	)
+
+	if err != nil {
+		return WebhookSubscription{}, fmt.Errorf("error writing webhook subscription to database %w", err)
+	}
+
+	return webhookSubscription, nil
+}
+
+func (s *Storage) GetWebhookSubscription() (WebhookSubscription, error) {
+	query := `SELECT id, strava_id, callback_url FROM webhook_subscriptions`
+
+	var webhookSubscription WebhookSubscription
+	err := s.db.QueryRow(query).Scan(
+		&webhookSubscription.ID,
+		&webhookSubscription.StravaID,
+		&webhookSubscription.CallbackURL,
+	)
+
+	if err != nil {
+		return WebhookSubscription{}, fmt.Errorf("error writing webhook subscription to database %w", err)
+	}
+
+	return webhookSubscription, nil
+}
+
+func (s *Storage) DeleteWebhook(stravaID int) error {
+	query := `DELETE FROM webhook_subscriptions WHERE strava_id = $1`
+	_, err := s.db.Exec(query, stravaID)
+	if err != nil {
+		return fmt.Errorf("error deleting webhook_subscription: %v", err)
+	}
+	return nil
+}
