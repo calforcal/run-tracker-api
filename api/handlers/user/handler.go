@@ -69,7 +69,7 @@ func (h *UserHandler) GetListeningHistory(c echo.Context) error {
 	// 	user = *updatedUser
 	// }
 
-	latestTracks, err := h.spotifyService.GetListeningHistory(*user.SpotifyAccessToken, params.Before)
+	latestTracks, err := h.spotifyService.GetListeningHistory(*user.SpotifyAccessToken, params.After)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error getting latest tracks"})
 	}

@@ -105,13 +105,13 @@ func (s *SpotifyService) GetCurrentUser(accessToken string) (SpotifyUser, error)
 	return spotifyUser, nil
 }
 
-func (s *SpotifyService) GetListeningHistory(accessToken string, before int64) (ListeningHistory, error) {
+func (s *SpotifyService) GetListeningHistory(accessToken string, after int64) (ListeningHistory, error) {
 	baseURL := "https://api.spotify.com/v1/me/player/recently-played"
 
 	// Build query parameters
 	params := url.Values{}
-	if before > 0 {
-		params.Set("before", fmt.Sprintf("%d", before))
+	if after < 1 {
+		params.Set("after", fmt.Sprintf("%d", after))
 	}
 
 	// Add limit parameter (Spotify API default is 20, max is 50)

@@ -24,12 +24,39 @@ type (
 	}
 )
 
+const (
+	CREATE = "create"
+	UPDATE = "update"
+	DELETE = "delete"
+
+	ACTIVITY = "activity"
+	ATHLETE  = "athlete"
+)
+
 func New(cfg *config.Config, logger *zap.Logger, webhookService *webhooks.WebhookService) WebhookHandler {
 	return WebhookHandler{
 		cfg:            cfg,
 		logger:         logger,
 		webhookService: webhookService,
 	}
+}
+
+func (h *WebhookHandler) ProcessWebhooks(c echo.Context) error {
+	var event webhooks.WebhookEvent
+	if err := c.Bind(&event); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request format"})
+	}
+
+	if event.AspectType == CREATE {
+		if event.ObjectType == ACTIVITY {
+			err := h.webhookService.ProcessActivity(event)
+			if err != nil {
+				return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error processing webhook"})
+			}
+		}
+		return c.JSON(http.StatusOK, nil)
+	}
+	return c.JSON(http.StatusOK, nil)
 }
 
 func (h *WebhookHandler) CreateWebhook(c echo.Context) error {

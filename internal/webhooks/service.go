@@ -9,7 +9,9 @@ import (
 	"run-tracker-api/internal/config"
 	"run-tracker-api/internal/spotify"
 	"run-tracker-api/internal/storage"
+	"run-tracker-api/internal/strava"
 	"run-tracker-api/internal/users"
+	"strconv"
 	"time"
 
 	"go.uber.org/zap"
@@ -22,15 +24,25 @@ type (
 		logger         *zap.Logger
 		spotifyService *spotify.SpotifyService
 		storage        *storage.Storage
+		stravaService  *strava.StravaService
 		usersService   *users.UserService
 	}
 
 	WebhookResponse struct {
 		ID int `json:"id"`
 	}
+
+	WebhookEvent struct {
+		AspectType     string `json:"aspect_type"`
+		EventTime      string `json:"event_time"`
+		ObjectID       int    `json:"object_id"`
+		ObjectType     string `json:"object_type"`
+		OwnerID        int64  `json:"owner_id"`
+		SubscriptionID string `json:"subscription_id"`
+	}
 )
 
-func New(cfg *config.Config, logger *zap.Logger, spotifyService *spotify.SpotifyService, storage *storage.Storage, usersService *users.UserService) *WebhookService {
+func New(cfg *config.Config, logger *zap.Logger, spotifyService *spotify.SpotifyService, storage *storage.Storage, stravaService *strava.StravaService, usersService *users.UserService) *WebhookService {
 	return &WebhookService{
 		cfg: cfg,
 		client: &http.Client{
@@ -39,6 +51,7 @@ func New(cfg *config.Config, logger *zap.Logger, spotifyService *spotify.Spotify
 		logger:         logger,
 		spotifyService: spotifyService,
 		storage:        storage,
+		stravaService:  stravaService,
 		usersService:   usersService,
 	}
 }
@@ -191,6 +204,60 @@ func (s *WebhookService) DeleteWebhook() error {
 			zap.Int("status", resp.StatusCode),
 			zap.String("response", string(bodyBytes)))
 		return fmt.Errorf("error deleting webhook with strava")
+	}
+
+	return nil
+}
+
+func (s *WebhookService) ProcessActivity(event WebhookEvent) error {
+	user, err := s.storage.GetUserByStravaID(event.OwnerID)
+	if err != nil {
+		s.logger.Info(fmt.Sprintf("error retrieving user from database: %v", err))
+		return err
+	}
+
+	tokenResponse, err := s.spotifyService.RefreshToken(*user.SpotifyRefreshToken)
+	if err != nil {
+		s.logger.Info(fmt.Sprintf("error refreshing token: %v", err))
+		return err
+	}
+
+	updatedUser, err := s.usersService.UpdateSpotifyUser(&user, &tokenResponse)
+	if err != nil {
+		s.logger.Info(fmt.Sprintf("error updating user in database: %v", err))
+		return err
+	}
+
+	// Going to put this in here with the calls.
+	// Maybe not optimal but holding off on a cron job for now to not "over engineer"
+	stringId := strconv.Itoa(event.ObjectID)
+	activity, err := s.stravaService.GetDetailedActivity(stringId, *updatedUser.SpotifyAccessToken)
+	if err != nil {
+		s.logger.Info(fmt.Sprintf("error getting activity from strava by id -> %s: %v", stringId, err))
+		return err
+	}
+
+	t, err := time.Parse(time.RFC3339, activity.StartDate)
+	if err != nil {
+		s.logger.Info(fmt.Sprintf("error parsing time to ms: %v", err))
+		return err
+	}
+
+	// Milliseconds
+	unixMs := t.UnixMilli()
+
+	spotifyToken := updatedUser.SpotifyAccessToken
+
+	listeningHistory, err := s.spotifyService.GetListeningHistory(*spotifyToken, unixMs)
+	if err != nil {
+		s.logger.Info(fmt.Sprintf("error getting user listening history: %v", err))
+		return err
+	}
+
+	err = s.storage.SaveListeningHistory(listeningHistory, activity.ID)
+	if err != nil {
+		s.logger.Info(fmt.Sprintf("error saving user listening history in database: %v", err))
+		return err
 	}
 
 	return nil

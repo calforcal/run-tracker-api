@@ -375,3 +375,7 @@ func (s *Storage) DeleteWebhook(stravaID int) error {
 	}
 	return nil
 }
+
+func (s *Storage) SaveListeningHistory(listeningHistory *spotify.ListeningHistory, activityID string) (error) {
+	
+}

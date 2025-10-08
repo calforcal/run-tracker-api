@@ -40,7 +40,7 @@ func main() {
 	spotifyService := spotify.New(config, logger)
 	userService := users.New(config, logger, storage, spotifyService)
 	authService := authService.New(config, logger)
-	webhookService := whs.New(config, logger, spotifyService, storage, userService)
+	webhookService := whs.New(config, logger, spotifyService, storage, stravaService, userService)
 
 	authMiddleware := middleware.NewAuthMiddleware(config, authService)
 
