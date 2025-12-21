@@ -99,3 +99,12 @@ func (s *UserService) UpdateSpotifyUser(user *storage.User, tokenResponse *spoti
 	}
 	return &updatedUser, nil
 }
+
+func (s *UserService) UpdateStravaTokens(res *strava.RefreshTokenResponse, stravaID int64) (*storage.User, error) {
+	user, err := s.storage.UpdateStravaTokens(res, stravaID)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}

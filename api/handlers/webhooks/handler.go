@@ -1,7 +1,10 @@
 package webhooks
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"run-tracker-api/internal/config"
 	"run-tracker-api/internal/webhooks"
@@ -42,8 +45,14 @@ func New(cfg *config.Config, logger *zap.Logger, webhookService *webhooks.Webhoo
 }
 
 func (h *WebhookHandler) ProcessWebhooks(c echo.Context) error {
+	// Log the raw body for debugging
+	body, _ := io.ReadAll(c.Request().Body)
+	log.Printf("Received webhook: %s", string(body))
+	c.Request().Body = io.NopCloser(bytes.NewBuffer(body)) // Reset body for binding
+
 	var event webhooks.WebhookEvent
 	if err := c.Bind(&event); err != nil {
+		log.Printf("Bind error: %v", err)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request format"})
 	}
 
@@ -54,7 +63,6 @@ func (h *WebhookHandler) ProcessWebhooks(c echo.Context) error {
 				return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error processing webhook"})
 			}
 		}
-		return c.JSON(http.StatusOK, nil)
 	}
 	return c.JSON(http.StatusOK, nil)
 }

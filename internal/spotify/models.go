@@ -17,10 +17,12 @@ type (
 	}
 
 	TrackInfo struct {
-		Name       string    `json:"name"`
-		DurationMs int       `json:"duration_ms"`
 		Album      AlbumInfo `json:"album"`
 		Artists    []Artist  `json:"artists"`
+		DurationMs int       `json:"duration_ms"`
+		ID         string    `json:"id"`
+		Name       string    `json:"name"`
+		URI        string    `json:"uri"`
 	}
 
 	AlbumInfo struct {

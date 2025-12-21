@@ -23,4 +23,23 @@ type (
 		StravaID    int
 		CallbackURL string
 	}
+
+	Song struct {
+		ID         int
+		Title      string
+		Artist     string
+		AlbumTitle string
+		Duration   int
+		ImageURL   string
+		SongURI    string
+		SpotifyID  string
+	}
+
+	UserSong struct {
+		ID         int
+		UserID     int
+		ActivityID int
+		SongID     int
+		PlayedAt   string
+	}
 )

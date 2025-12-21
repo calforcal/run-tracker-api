@@ -57,7 +57,8 @@ func main() {
 	athlete := api.Group("/athlete")
 	user := api.Group("/users")
 
-	webhook.GET("/strava", wh.VerifyWebhookCallback)
+	webhook.GET("/strava/activity", wh.VerifyWebhookCallback)
+	webhook.POST("/strava/activity", wh.ProcessWebhooks)
 	webhook.POST("/strava", wh.CreateWebhook)
 	webhook.DELETE("/strava", wh.DeleteWebhook)
 	webhook.GET("/strava/view", wh.GetWebhook)
@@ -100,5 +101,5 @@ func main() {
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}, // Specify allowed HTTP methods
 	}))
-	e.Logger.Fatal(e.Start(":8000"))
+	e.Logger.Fatal(e.Start(":8080"))
 }

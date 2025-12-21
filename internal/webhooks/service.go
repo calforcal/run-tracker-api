@@ -34,11 +34,11 @@ type (
 
 	WebhookEvent struct {
 		AspectType     string `json:"aspect_type"`
-		EventTime      string `json:"event_time"`
+		EventTime      int64  `json:"event_time"`
 		ObjectID       int    `json:"object_id"`
 		ObjectType     string `json:"object_type"`
 		OwnerID        int64  `json:"owner_id"`
-		SubscriptionID string `json:"subscription_id"`
+		SubscriptionID int    `json:"subscription_id"`
 	}
 )
 
@@ -61,7 +61,7 @@ func (s *WebhookService) CreateWebhook() (WebhookResponse, error) {
 	clientSecret := s.cfg.StravaClientSecret
 
 	baseUrl := "https://www.strava.com/api/v3/push_subscriptions"
-	callbackURL := "https://scotty-unglozed-nonvisibly.ngrok-free.dev/api/webhooks/strava"
+	callbackURL := "https://scotty-unglozed-nonvisibly.ngrok-free.dev/api/webhooks/strava/activity"
 
 	params := url.Values{}
 	params.Set("client_id", clientID)
@@ -216,6 +216,8 @@ func (s *WebhookService) ProcessActivity(event WebhookEvent) error {
 		return err
 	}
 
+	fmt.Println("refresh: ", *user.SpotifyRefreshToken)
+
 	tokenResponse, err := s.spotifyService.RefreshToken(*user.SpotifyRefreshToken)
 	if err != nil {
 		s.logger.Info(fmt.Sprintf("error refreshing token: %v", err))
@@ -228,14 +230,28 @@ func (s *WebhookService) ProcessActivity(event WebhookEvent) error {
 		return err
 	}
 
+	refreshResponse, err := s.stravaService.RefreshToken(updatedUser.StravaRefreshToken)
+	if err != nil {
+		s.logger.Info(fmt.Sprintf("error getting strava refresh token: %v", err))
+		return err
+	}
+
+	updatedUser, err = s.usersService.UpdateStravaTokens(&refreshResponse, updatedUser.StravaID)
+	if err != nil {
+		s.logger.Info(fmt.Sprintf("error updating user from strava refresh: %v", err))
+	}
+
 	// Going to put this in here with the calls.
 	// Maybe not optimal but holding off on a cron job for now to not "over engineer"
 	stringId := strconv.Itoa(event.ObjectID)
-	activity, err := s.stravaService.GetDetailedActivity(stringId, *updatedUser.SpotifyAccessToken)
+	activity, err := s.stravaService.GetDetailedActivity(stringId, *&updatedUser.StravaAccessToken)
 	if err != nil {
 		s.logger.Info(fmt.Sprintf("error getting activity from strava by id -> %s: %v", stringId, err))
 		return err
 	}
+
+	fmt.Println("ACTIVTY: ", activity.StartDate)
+	fmt.Println("LOCAL: ", activity.StartDateLocal)
 
 	t, err := time.Parse(time.RFC3339, activity.StartDate)
 	if err != nil {
@@ -254,10 +270,12 @@ func (s *WebhookService) ProcessActivity(event WebhookEvent) error {
 		return err
 	}
 
-	err = s.storage.SaveListeningHistory(listeningHistory, activity.ID)
-	if err != nil {
-		s.logger.Info(fmt.Sprintf("error saving user listening history in database: %v", err))
-		return err
+	for _, item := range listeningHistory.Items {
+		err = s.storage.SaveListeningHistoryItem(&item, user.ID, event.ObjectID)
+		if err != nil {
+			s.logger.Info(fmt.Sprintf("error saving user listening history in database: %v", err))
+			return err
+		}
 	}
 
 	return nil

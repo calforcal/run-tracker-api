@@ -103,7 +103,7 @@ func (s *Storage) SaveUser(token *strava.TokenResponse) (User, error) {
 
 func (s *Storage) GetUserByStravaID(stravaId int64) (User, error) {
 	user := User{}
-	query := `SELECT id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, created_at, updated_at FROM users WHERE strava_id = $1`
+	query := `SELECT id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, spotify_access_token, spotify_id, spotify_expires_at, spotify_refresh_token, created_at, updated_at FROM users WHERE strava_id = $1`
 	if err := s.db.QueryRow(query, stravaId).Scan(
 		&user.ID,
 		&user.UUID,
@@ -113,6 +113,10 @@ func (s *Storage) GetUserByStravaID(stravaId int64) (User, error) {
 		&user.StravaAccessToken,
 		&user.StravaRefreshToken,
 		&user.StravaExpiresAt,
+		&user.SpotifyAccessToken,
+		&user.SpotifyID,
+		&user.SpotifyExpiresAt,
+		&user.SpotifyRefreshToken,
 		&user.CreatedAt,
 		&user.UpdatedAt); err != nil {
 		return User{}, err
@@ -376,6 +380,121 @@ func (s *Storage) DeleteWebhook(stravaID int) error {
 	return nil
 }
 
-func (s *Storage) SaveListeningHistory(listeningHistory *spotify.ListeningHistory, activityID string) (error) {
-	
+func (s *Storage) SaveListeningHistoryItem(item *spotify.ListeningHistoryItem, userID int, activityID int) error {
+	song := Song{
+		Title:      item.Track.Name,
+		Artist:     item.Track.Artists[0].Name,
+		AlbumTitle: item.Track.Album.Name,
+		Duration:   item.Track.DurationMs,
+		ImageURL:   item.Track.Album.Images[0].URL,
+		SongURI:    item.Track.URI,
+		SpotifyID:  item.Track.ID,
+	}
+
+	dbSong, err := s.GetOrCreateSong(song)
+	if err != nil {
+		return fmt.Errorf("error creating song in database: %v", err)
+	}
+
+	userSong := UserSong{
+		UserID:     userID,
+		ActivityID: activityID,
+		SongID:     dbSong.ID,
+		PlayedAt:   item.PlayedAt,
+	}
+
+	err = s.SaveUserSong(userSong)
+	if err != nil {
+		return fmt.Errorf("error creating song : user association: %v", err)
+	}
+
+	return nil
+}
+
+func (s *Storage) GetOrCreateSong(song Song) (Song, error) {
+	query := `
+		INSERT INTO songs (title, artist, album_title, duration, image_url, song_uri, spotify_id) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7) 
+		ON CONFLICT (spotify_id) 
+		DO UPDATE SET 
+			title = EXCLUDED.title,
+			artist = EXCLUDED.artist,
+			album_title = EXCLUDED.album_title,
+			duration = EXCLUDED.duration,
+			image_url = EXCLUDED.image_url,
+			song_uri = EXCLUDED.song_uri
+		RETURNING id, title, artist, album_title, duration, image_url, song_uri, spotify_id
+	`
+
+	var result Song
+	err := s.db.QueryRow(
+		query,
+		song.Title,
+		song.Artist,
+		song.AlbumTitle,
+		song.Duration,
+		song.ImageURL,
+		song.SongURI,
+		song.SpotifyID,
+	).Scan(
+		&result.ID,
+		&result.Title,
+		&result.Artist,
+		&result.AlbumTitle,
+		&result.Duration,
+		&result.ImageURL,
+		&result.SongURI,
+		&result.SpotifyID,
+	)
+
+	if err != nil {
+		return Song{}, fmt.Errorf("failed to get or create song: %w", err)
+	}
+
+	return result, nil
+}
+
+func (s *Storage) SaveUserSong(userSong UserSong) error {
+	query := `INSERT INTO user_activity_songs (user_id, activity_id, song_id, played_at) VALUES ($1, $2, $3, $4)`
+	_, err := s.db.Exec(query, userSong.UserID, userSong.ActivityID, userSong.SongID, userSong.PlayedAt)
+	if err != nil {
+		return fmt.Errorf("error writing user song to database: %v", err)
+	}
+
+	return nil
+}
+
+func (s *Storage) UpdateStravaTokens(token *strava.RefreshTokenResponse, stravaID int64) (*User, error) {
+	query :=
+		`UPDATE users SET
+		strava_access_token = $1, 
+		strava_refresh_token = $2, 
+		strava_expires_at = $3
+		WHERE strava_id = $4
+		RETURNING id, uuid, name, username, strava_id, strava_access_token, strava_refresh_token, strava_expires_at, spotify_id, spotify_access_token, spotify_expires_at, spotify_refresh_token, created_at, updated_at;
+	`
+
+	var user User
+	err := s.db.QueryRow(query, token.AccessToken, token.RefreshToken, token.ExpiresAt, stravaID).Scan(
+		&user.ID,
+		&user.UUID,
+		&user.Name,
+		&user.Username,
+		&user.StravaID,
+		&user.StravaAccessToken,
+		&user.StravaRefreshToken,
+		&user.StravaExpiresAt,
+		&user.SpotifyID,
+		&user.SpotifyAccessToken,
+		&user.SpotifyExpiresAt,
+		&user.SpotifyRefreshToken,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return &User{}, fmt.Errorf("error saving user: %w", err)
+	}
+
+	return &user, nil
 }

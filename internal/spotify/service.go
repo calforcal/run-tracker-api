@@ -110,7 +110,7 @@ func (s *SpotifyService) GetListeningHistory(accessToken string, after int64) (L
 
 	// Build query parameters
 	params := url.Values{}
-	if after < 1 {
+	if after > 0 {
 		params.Set("after", fmt.Sprintf("%d", after))
 	}
 

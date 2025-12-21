@@ -46,6 +46,8 @@ func New(cfg *config.Config, stravaService *strava.StravaService, spotifyService
 	}
 }
 
+
+
 func (h *AuthHandler) Login(c echo.Context) error {
 	var req ExchangeCodeForTokenRequest
 	if err := c.Bind(&req); err != nil {
