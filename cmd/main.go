@@ -70,6 +70,7 @@ func main() {
 	athlete.Use(authMiddleware.RunAuthMiddleware())
 	athlete.GET("/activities", athleteHandler.GetAthleteActivities)
 	athlete.GET("/activities/:activity_id", athleteHandler.GetActivityByStravaId)
+	athlete.GET("/activities/:activity_id/stream", athleteHandler.GetActivityStream)
 
 	api.GET("/home", homeHandler.Home)
 	athlete.GET("", athleteHandler.GetAthlete)

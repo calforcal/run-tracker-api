@@ -109,3 +109,26 @@ func (h *AthleteHandler) GetActivityByStravaId(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, activity)
 }
+
+func (h *AthleteHandler) GetActivityStream(c echo.Context) error {
+	uuid := c.Get("uuid").(string)
+	activityId := c.Param("activity_id")
+
+	user, err := h.userService.GetUserByUUID(uuid)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusBadRequest, "error: error getting user")
+		}
+		return c.JSON(http.StatusInternalServerError, err)
+	}
+
+	activity, err := h.stravaService.GetStreamedActivity(activityId, user.StravaAccessToken)
+	if err != nil {
+		
+		return c.JSON(http.StatusInternalServerError, err.Error())
+	}
+
+	// Implement some combo
+
+	return c.JSON(http.StatusOK, activity)
+}

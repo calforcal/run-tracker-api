@@ -42,6 +42,14 @@ type (
 		RefreshToken string `json:"refresh_token"`
 		GrantType    string `json:"grant_type"`
 	}
+
+	ActivityStream struct {
+		Type         string        `json:"type"`
+		Data         []interface{} `json:"data"`
+		SeriesType   string        `json:"series_type"`
+		OriginalSize int           `json:"original_size"`
+		Resolution   string        `json:"resolution"`
+	}
 )
 
 func New(cfg *config.Config, logger *zap.Logger) *StravaService {
@@ -204,4 +212,34 @@ func (s *StravaService) RefreshToken(refreshToken string) (RefreshTokenResponse,
 	}
 
 	return refreshResponse, nil
+}
+
+func (s *StravaService) GetStreamedActivity(activityID, accessToken string) ([]ActivityStream, error) {
+	keysParam := "time,latlng,altitude,heartrate,watts"
+	url := fmt.Sprintf("https://www.strava.com/api/v3/activities/%s/streams?keys=%s",
+		activityID, keysParam)
+
+	req, err := http.NewRequest("GET", url, nil)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	if err != nil {
+		return []ActivityStream{}, err
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("strava API returned status %d", resp.StatusCode)
+	}
+
+	var streams []ActivityStream
+	err = json.NewDecoder(resp.Body).Decode(&streams)
+	if err != nil {
+		return nil, err
+	}
+
+	return streams, nil
 }
