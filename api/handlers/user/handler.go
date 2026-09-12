@@ -1,78 +1,54 @@
 package user
 
 import (
-	"fmt"
 	"net/http"
-	"run-tracker-api/internal/config"
-	"run-tracker-api/internal/spotify"
-	"run-tracker-api/internal/users"
+
+	"run-tracker-api/api/dto"
+	"run-tracker-api/internal/ports"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
 
-type (
-	UserHandler struct {
-		config         *config.Config
-		logger         *zap.Logger
-		spotifyService *spotify.SpotifyService
-		userService    *users.UserService
-	}
+type UserHandler struct {
+	userService      ports.UserService
+	listeningService ports.ListeningService
+	logger           *zap.Logger
+}
 
-	ListeningHistoryRequest struct {
-		After  int64 `query:"after"`
-		Before int64 `query:"before"`
-	}
-)
-
-func New(cfg *config.Config, spotifyService *spotify.SpotifyService, userService *users.UserService, logger *zap.Logger) *UserHandler {
-	return &UserHandler{
-		config:         cfg,
-		spotifyService: spotifyService,
-		userService:    userService,
-		logger:         logger,
-	}
+func New(userService ports.UserService, listeningService ports.ListeningService, logger *zap.Logger) *UserHandler {
+	return &UserHandler{userService: userService, listeningService: listeningService, logger: logger}
 }
 
 func (h *UserHandler) GetListeningHistory(c echo.Context) error {
+	ctx := c.Request().Context()
 	uuid := c.Get("uuid").(string)
 
-	var params ListeningHistoryRequest
-	err := c.Bind(&params)
-
-	if err != nil {
+	var params dto.ListeningHistoryRequest
+	if err := c.Bind(&params); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request parameters"})
 	}
 
-	user, err := h.userService.GetUserByUUID(uuid)
+	user, err := h.userService.GetByUUID(ctx, uuid)
 	if err != nil {
-		h.logger.Info(fmt.Sprintf("no user found for uuid: %s", uuid))
+		h.logger.Info("no user found for uuid", zap.String("uuid", uuid))
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "error getting user"})
 	}
 
-	// if user.SpotifyExpiresAt != nil && *user.SpotifyExpiresAt < time.Now().Unix() {
-	// 	h.logger.Info("token is expired")
+	if user.Spotify == nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "user has not linked a spotify account"})
+	}
 
-	// 	tokenResponse, err := h.spotifyService.RefreshToken(*user.SpotifyRefreshToken)
-	// 	fmt.Println("token is fucked   ", err)
-	// 	if err != nil {
-	// 		h.logger.Error("failed to refresh spotify token", zap.Error(err))
-	// 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to refresh token"})
-	// 	}
+	user, err = h.userService.EnsureValidSpotifyToken(ctx, user)
+	if err != nil {
+		h.logger.Error("failed to refresh spotify token", zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to refresh token"})
+	}
 
-	// 	fmt.Println("token is fucked  response  ", tokenResponse)
-
-	// 	updatedUser, err := h.userService.UpdateSpotifyUser(&user, &tokenResponse)
-	// 	if err != nil {
-	// 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error updating user"})
-	// 	}
-	// 	user = *updatedUser
-	// }
-
-	latestTracks, err := h.spotifyService.GetListeningHistory(*user.SpotifyAccessToken, params.After)
+	history, err := h.listeningService.GetListeningHistory(ctx, user.Spotify.AccessToken, params.After)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error getting latest tracks"})
 	}
 
-	return c.JSON(http.StatusOK, latestTracks)
+	return c.JSON(http.StatusOK, dto.ListeningHistoryFromDomain(history))
 }

@@ -16,6 +16,8 @@ type Config struct {
 	MigrationsDir       string
 	JwtSecret           string
 	WebhookToken        string
+	WebhookCallbackURL  string
+	SpotifyRedirectURI  string
 }
 
 func New() *Config {
@@ -23,8 +25,8 @@ func New() *Config {
 		StravaAccessToken:   os.Getenv("STRAVA_ACCESS_TOKEN"),
 		StravaClientID:      os.Getenv("STRAVA_CLIENT_ID"),
 		StravaClientSecret:  os.Getenv("STRAVA_CLIENT_SECRET"),
-		SpotifyClientID:     os.Getenv("SPOTIfY_CLIENT_ID"),
-		SpotifyClientSecret: os.Getenv("SPOTIFY_CLIENT_SCERET"),
+		SpotifyClientID:     os.Getenv("SPOTIFY_CLIENT_ID"),
+		SpotifyClientSecret: os.Getenv("SPOTIFY_CLIENT_SECRET"),
 		DBHost:              os.Getenv("DB_HOST"),
 		DBPort:              os.Getenv("DB_PORT"),
 		DBUser:              os.Getenv("DB_USER"),
@@ -33,5 +35,7 @@ func New() *Config {
 		MigrationsDir:       os.Getenv("GOOSE_MIGRATION_DIR"),
 		JwtSecret:           os.Getenv("JWT_SECRET"),
 		WebhookToken:        os.Getenv("WEBHOOK_TOKEN"),
+		WebhookCallbackURL:  os.Getenv("WEBHOOK_CALLBACK_URL"),
+		SpotifyRedirectURI:  os.Getenv("SPOTIFY_REDIRECT_URI"),
 	}
 }

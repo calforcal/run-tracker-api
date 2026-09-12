@@ -1,120 +1,73 @@
 package webhooks
 
 import (
-	"bytes"
-	"fmt"
-	"io"
-	"log"
 	"net/http"
-	"run-tracker-api/internal/config"
-	"run-tracker-api/internal/webhooks"
+
+	"run-tracker-api/api/dto"
+	"run-tracker-api/internal/ports"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
 
-type (
-	WebhookHandler struct {
-		cfg            *config.Config
-		logger         *zap.Logger
-		webhookService *webhooks.WebhookService
-	}
+type WebhookHandler struct {
+	logger         *zap.Logger
+	webhookService ports.WebhookService
+}
 
-	WebhookVerificationRequest struct {
-		HubMode        string `query:"hub.mode"`
-		HubChallenge   string `query:"hub.challenge"`
-		HubVerifyToken string `query:"hub.verify_token"`
-	}
-)
-
-const (
-	CREATE = "create"
-	UPDATE = "update"
-	DELETE = "delete"
-
-	ACTIVITY = "activity"
-	ATHLETE  = "athlete"
-)
-
-func New(cfg *config.Config, logger *zap.Logger, webhookService *webhooks.WebhookService) WebhookHandler {
-	return WebhookHandler{
-		cfg:            cfg,
-		logger:         logger,
-		webhookService: webhookService,
-	}
+func New(logger *zap.Logger, webhookService ports.WebhookService) *WebhookHandler {
+	return &WebhookHandler{logger: logger, webhookService: webhookService}
 }
 
 func (h *WebhookHandler) ProcessWebhooks(c echo.Context) error {
-	// Log the raw body for debugging
-	body, _ := io.ReadAll(c.Request().Body)
-	log.Printf("Received webhook: %s", string(body))
-	c.Request().Body = io.NopCloser(bytes.NewBuffer(body)) // Reset body for binding
-
-	var event webhooks.WebhookEvent
+	var event dto.WebhookEventRequest
 	if err := c.Bind(&event); err != nil {
-		log.Printf("Bind error: %v", err)
+		h.logger.Info("invalid webhook body", zap.Error(err))
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request format"})
 	}
 
-	if event.AspectType == CREATE {
-		if event.ObjectType == ACTIVITY {
-			err := h.webhookService.ProcessActivity(event)
-			if err != nil {
-				return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error processing webhook"})
-			}
-		}
+	if err := h.webhookService.ProcessEvent(c.Request().Context(), event.ToDomain()); err != nil {
+		h.logger.Error("error processing webhook", zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error processing webhook"})
 	}
+
 	return c.JSON(http.StatusOK, nil)
 }
 
 func (h *WebhookHandler) CreateWebhook(c echo.Context) error {
-	webhookSubscription, err := h.webhookService.CreateWebhook()
+	sub, err := h.webhookService.CreateSubscription(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": fmt.Sprintf("problem creating webhook: %v", err)})
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "problem creating webhook: " + err.Error()})
 	}
-	return c.JSON(http.StatusCreated, webhookSubscription)
+	return c.JSON(http.StatusCreated, dto.WebhookSubscriptionFromDomain(sub))
 }
 
 func (h *WebhookHandler) GetWebhook(c echo.Context) error {
-	webhookResponse, err := h.webhookService.GetWebhook()
+	subs, err := h.webhookService.ListStravaSubscriptions(c.Request().Context())
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": fmt.Sprintf("error fetching webhook: %v", err)})
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error fetching webhook: " + err.Error()})
 	}
-
-	return c.JSON(http.StatusOK, webhookResponse)
+	return c.JSON(http.StatusOK, dto.WebhookSubscriptionsFromDomain(subs))
 }
 
 func (h *WebhookHandler) DeleteWebhook(c echo.Context) error {
-	err := h.webhookService.DeleteWebhook()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, echo.Map{"error": "error deleting webhook"})
+	if err := h.webhookService.DeleteSubscription(c.Request().Context()); err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error deleting webhook"})
 	}
-
 	return c.JSON(http.StatusNoContent, nil)
 }
 
 func (h *WebhookHandler) VerifyWebhookCallback(c echo.Context) error {
-	var params WebhookVerificationRequest
-
+	var params dto.WebhookVerificationRequest
 	if err := c.Bind(&params); err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{
-			"error": "invalid query parameters",
-		})
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid query parameters"})
 	}
 
-	if params.HubVerifyToken != h.cfg.WebhookToken || params.HubChallenge == "" {
-		h.logger.Info(fmt.Sprintf("invalid params: token: %s, challenge: %s", params.HubVerifyToken, params.HubChallenge))
-		return c.JSON(http.StatusBadRequest, echo.Map{
-			"error": "invalid query parameters",
-		})
+	challenge, err := h.webhookService.VerifyCallback(c.Request().Context(), params.HubMode, params.HubChallenge, params.HubVerifyToken)
+	if err != nil {
+		h.logger.Info("invalid webhook verification params", zap.Error(err))
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid query parameters"})
 	}
 
-	return c.JSON(http.StatusOK, echo.Map{
-		"hub.challenge": params.HubChallenge,
-	})
-}
-
-func (h *WebhookHandler) ActivityUpload(c echo.Context) error {
-
-	return c.JSON(http.StatusOK, map[string]string{"message": "successfully processed"})
+	return c.JSON(http.StatusOK, echo.Map{"hub.challenge": challenge})
 }

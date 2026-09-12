@@ -1,225 +1,120 @@
 package auth
 
 import (
-	"errors"
-	"fmt"
 	"net/http"
-	"run-tracker-api/internal/auth"
-	"run-tracker-api/internal/config"
-	"run-tracker-api/internal/spotify"
-	"run-tracker-api/internal/storage"
-	"run-tracker-api/internal/strava"
-	"run-tracker-api/internal/users"
 	"strings"
+
+	"run-tracker-api/api/dto"
+	"run-tracker-api/internal/config"
+	"run-tracker-api/internal/ports"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
 
-type (
-	AuthHandler struct {
-		config         *config.Config
-		logger         *zap.Logger
-		stravaService  *strava.StravaService
-		spotifyService *spotify.SpotifyService
-		userService    *users.UserService
-		authService    *auth.AuthService
-	}
+type AuthHandler struct {
+	config      *config.Config
+	userService ports.UserService
+	authService ports.AuthService
+	logger      *zap.Logger
+}
 
-	ExchangeCodeForTokenRequest struct {
-		Code string `json:"code"`
-	}
-
-	Token struct {
-		AccessToken string `json:"access_token"`
-	}
-)
-
-func New(cfg *config.Config, stravaService *strava.StravaService, spotifyService *spotify.SpotifyService, userService *users.UserService, authService *auth.AuthService, logger *zap.Logger) *AuthHandler {
+func New(cfg *config.Config, userService ports.UserService, authService ports.AuthService, logger *zap.Logger) *AuthHandler {
 	return &AuthHandler{
-		config:         cfg,
-		stravaService:  stravaService,
-		spotifyService: spotifyService,
-		userService:    userService,
-		authService:    authService,
-		logger:         logger,
+		config:      cfg,
+		userService: userService,
+		authService: authService,
+		logger:      logger,
 	}
 }
 
-
-
+// Login exchanges a Strava OAuth code, upserts the user, ensures a linked
+// Spotify token is still valid, and issues a session token.
 func (h *AuthHandler) Login(c echo.Context) error {
-	var req ExchangeCodeForTokenRequest
+	ctx := c.Request().Context()
+
+	var req dto.ExchangeCodeRequest
 	if err := c.Bind(&req); err != nil {
-		h.logger.Info("missing code from request: %s", zap.Error(err))
+		h.logger.Info("missing code from request", zap.Error(err))
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
 	}
 
-	tokenResponse, err := h.exchangeCodeForToken(req)
+	user, err := h.userService.LoginWithStrava(ctx, req.Code)
 	if err != nil {
-		h.logger.Info("failed to exchange code for token: %d", zap.Error(err))
+		h.logger.Info("failed to log in with strava", zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to exchange code for token"})
 	}
 
-	user, err := h.userService.CreateOrUpdateUser(tokenResponse)
+	token, err := h.authService.IssueToken(ctx, user)
 	if err != nil {
-		h.logger.Info("failed to create or upsert user: %d", zap.Error(err))
-		return c.JSON(http.StatusInternalServerError, "error authorizing user")
-	}
-
-	// Refresh Spotify token
-	if user.SpotifyID != nil {
-		tokenResponse, err := h.spotifyService.RefreshToken(*user.SpotifyRefreshToken)
-		fmt.Println("token is fucked   ", err)
-		if err != nil {
-			h.logger.Error("failed to refresh spotify token", zap.Error(err))
-			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to refresh token"})
-		}
-
-		fmt.Println("token is fucked  response  ", tokenResponse)
-
-		updatedUser, err := h.userService.UpdateSpotifyUser(user, &tokenResponse)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error updating user"})
-		}
-		user = updatedUser
-	}
-
-	fmt.Println("USIE", user)
-	token, err := h.authService.IssueJwt(user)
-	if err != nil {
-		h.logger.Info("failed to issue new jwt: %d", zap.Error(err))
+		h.logger.Info("failed to issue new token", zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to authorize user"})
 	}
 
-	return c.JSON(http.StatusOK, Token{AccessToken: token})
+	return c.JSON(http.StatusOK, dto.TokenResponse{AccessToken: token})
 }
 
+// AuthorizeStravaUser exchanges a Strava OAuth code, upserts the user, and
+// issues a session token, without touching any linked Spotify credentials.
 func (h *AuthHandler) AuthorizeStravaUser(c echo.Context) error {
-	var req ExchangeCodeForTokenRequest
+	ctx := c.Request().Context()
+
+	var req dto.ExchangeCodeRequest
 	if err := c.Bind(&req); err != nil {
-		h.logger.Info("missing code from request: %s", zap.Error(err))
+		h.logger.Info("missing code from request", zap.Error(err))
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
 	}
 
-	tokenResponse, err := h.exchangeCodeForToken(req)
+	user, err := h.userService.ExchangeStravaCode(ctx, req.Code)
 	if err != nil {
-		h.logger.Info("failed to exchange code for token: %d", zap.Error(err))
+		h.logger.Info("failed to exchange code for token", zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to exchange code for token"})
 	}
 
-	user, err := h.userService.CreateOrUpdateUser(tokenResponse)
+	token, err := h.authService.IssueToken(ctx, user)
 	if err != nil {
-		h.logger.Info("failed to create or upsert user: %d", zap.Error(err))
-		return c.JSON(http.StatusInternalServerError, "error authorizing user")
-	}
-
-	// Should never return here without a fresh token
-	// stravaExpiresAt := int64(user.StravaExpiresAt)
-	// expiresAt := time.Unix(stravaExpiresAt, 0)
-	// if time.Now().UTC().After(expiresAt) {
-	// refreshResponse, err := h.stravaService.RefreshToken(user.StravaRefreshToken)
-	// if err != nil {
-	// 	h.logger.Info("failed to refresh users token: %d", zap.Error(err))
-	// 	return c.JSON(http.StatusInternalServerError, "error authorizing user")
-	// }
-	// stravaToken := strava.TokenResponse{
-	// 	TokenType:    "Bearer",
-	// 	AccessToken:  refreshResponse.AccessToken,
-	// 	RefreshToken: refreshResponse.RefreshToken,
-	// 	ExpiresAt:    refreshResponse.ExpiresAt,
-	// 	ExpiresIn:    refreshResponse.ExpiresIn,
-	// 	Athlete:      tokenResponse.Athlete,
-	// }
-	// user, err := h.userService.CreateOrUpdateUser(&stravaToken)
-	// if err != nil {
-	// 	h.logger.Info("failed to update users token in database: %d", zap.Error(err))
-	// 	return c.JSON(http.StatusInternalServerError, "error authorizing user")
-	// }
-	token, err := h.authService.IssueJwt(user)
-	if err != nil {
-		h.logger.Info("failed to issue new jwt: %d", zap.Error(err))
+		h.logger.Info("failed to issue new token", zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to authorize user"})
 	}
 
-	return c.JSON(http.StatusOK, Token{AccessToken: token})
+	return c.JSON(http.StatusOK, dto.TokenResponse{AccessToken: token})
 }
 
-func (h *AuthHandler) exchangeCodeForToken(req ExchangeCodeForTokenRequest) (*strava.TokenResponse, error) {
-	tokenResponse, err := h.stravaService.ExchangeCodeForToken(req.Code)
-
-	if err != nil {
-		return &strava.TokenResponse{}, err
-	}
-
-	if tokenResponse.Athlete.ID <= 0 {
-		return &strava.TokenResponse{}, errors.New("error authenticating user")
-	}
-
-	return &tokenResponse, nil
-}
-
+// AuthorizeSpotifyUser links a Spotify account to the already-authenticated
+// (Strava) user identified by the bearer token on the request.
 func (h *AuthHandler) AuthorizeSpotifyUser(c echo.Context) error {
-	token := c.Request().Header.Get("Authorization")
-	var uuid *string
-	fmt.Println("TOKEN", token)
-	if token != "" {
-		tokenStr := strings.TrimPrefix(token, "Bearer ")
-		claims, err := h.authService.ParseJWT(tokenStr)
-		if err != nil {
-			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid token"})
-		}
-		uuid = &claims.UUID
-	}
+	ctx := c.Request().Context()
 
-	if token == "" {
+	authHeader := c.Request().Header.Get("Authorization")
+	if authHeader == "" {
 		return c.JSON(http.StatusForbidden, echo.Map{"error": "unauthorized spotify login attempt"})
 	}
-
-	var req ExchangeCodeForTokenRequest
-	if err := c.Bind(&req); err != nil {
-		h.logger.Info("missing code from request: %d", zap.Error(err))
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
-	}
-
-	redirectURI := "http://127.0.0.1:5173/auth/callback/spotify"
-	grantType := "authorization_code"
-	tokenResponse, err := h.exchangeSpotifyCodeForToken(req, redirectURI, grantType)
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+	claims, err := h.authService.ParseToken(ctx, tokenStr)
 	if err != nil {
-		h.logger.Info("failed to exchange code for token: %v", zap.Error(err))
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to exchange code for token"})
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid token"})
 	}
-
-	fmt.Println("TOKEN RESPONSE", tokenResponse)
-
-	var user *storage.User
-	if uuid != nil && *uuid != "" {
-		user, err = h.userService.AddSpotifyToStravaUser(*uuid, tokenResponse)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to update user"})
-		}
-	} else {
-		// If no UUID provided, we can't proceed
+	if claims.UUID == "" {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "No valid user UUID provided"})
 	}
 
-	fmt.Println("USER", user)
+	var req dto.ExchangeCodeRequest
+	if err := c.Bind(&req); err != nil {
+		h.logger.Info("missing code from request", zap.Error(err))
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
 
-	token, err = h.authService.IssueJwt(user)
+	user, err := h.userService.LinkSpotifyAccount(ctx, claims.UUID, req.Code, h.config.SpotifyRedirectURI)
 	if err != nil {
-		h.logger.Info("failed to issue new jwt: %d", zap.Error(err))
+		h.logger.Info("failed to link spotify account", zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to update user"})
+	}
+
+	token, err := h.authService.IssueToken(ctx, user)
+	if err != nil {
+		h.logger.Info("failed to issue new token", zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to authorize user"})
 	}
 
-	return c.JSON(http.StatusOK, Token{AccessToken: token})
-}
-
-func (h *AuthHandler) exchangeSpotifyCodeForToken(req ExchangeCodeForTokenRequest, redirectURI string, grantType string) (*spotify.TokenResponse, error) {
-	tokenResponse, err := h.spotifyService.ExchangeCodeForToken(req.Code, redirectURI, grantType)
-
-	if err != nil {
-		return &spotify.TokenResponse{}, err
-	}
-
-	return &tokenResponse, nil
+	return c.JSON(http.StatusOK, dto.TokenResponse{AccessToken: token})
 }

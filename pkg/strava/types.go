@@ -1,57 +1,53 @@
 package strava
 
-type (
-	Bike struct {
-		ID            string  `json:"id"`
-		Primary       bool    `json:"primary"`
-		Name          string  `json:"name"`
-		ResourceState int     `json:"resource_state"`
-		Distance      float64 `json:"distance"`
-	}
+// Wire-format types matching Strava's public API JSON responses.
 
-	Shoe struct {
-		ID            string  `json:"id"`
-		Primary       bool    `json:"primary"`
-		Name          string  `json:"name"`
-		ResourceState int     `json:"resource_state"`
-		Distance      float64 `json:"distance"`
-	}
+type Bike struct {
+	ID            string  `json:"id"`
+	Primary       bool    `json:"primary"`
+	Name          string  `json:"name"`
+	ResourceState int     `json:"resource_state"`
+	Distance      float64 `json:"distance"`
+}
 
-	Athlete struct {
-		ID                    int64         `json:"id"`
-		Username              string        `json:"username"`
-		ResourceState         int           `json:"resource_state"`
-		Firstname             string        `json:"firstname"`
-		Lastname              string        `json:"lastname"`
-		City                  string        `json:"city"`
-		State                 string        `json:"state"`
-		Country               string        `json:"country"`
-		Sex                   string        `json:"sex"`
-		Premium               bool          `json:"premium"`
-		CreatedAt             string        `json:"created_at"`
-		UpdatedAt             string        `json:"updated_at"`
-		BadgeTypeID           int           `json:"badge_type_id"`
-		ProfileMedium         string        `json:"profile_medium"`
-		Profile               string        `json:"profile"`
-		Friend                *bool         `json:"friend"`
-		Follower              *bool         `json:"follower"`
-		FollowerCount         int           `json:"follower_count"`
-		FriendCount           int           `json:"friend_count"`
-		MutualFriendCount     int           `json:"mutual_friend_count"`
-		AthleteType           int           `json:"athlete_type"`
-		DatePreference        string        `json:"date_preference"`
-		MeasurementPreference string        `json:"measurement_preference"`
-		Clubs                 []interface{} `json:"clubs"`
-		FTP                   *float64      `json:"ftp"`
-		Weight                float64       `json:"weight"`
-		Bikes                 []Bike        `json:"bikes"`
-		Shoes                 []Shoe        `json:"shoes"`
-		IsSpotifyConnected    *bool         `json:"is_spotify_connected"`
-	}
+type Shoe struct {
+	ID            string  `json:"id"`
+	Primary       bool    `json:"primary"`
+	Name          string  `json:"name"`
+	ResourceState int     `json:"resource_state"`
+	Distance      float64 `json:"distance"`
+}
 
-	Activities struct {
-	}
-)
+type Athlete struct {
+	ID                    int64         `json:"id"`
+	Username              string        `json:"username"`
+	ResourceState         int           `json:"resource_state"`
+	Firstname             string        `json:"firstname"`
+	Lastname              string        `json:"lastname"`
+	City                  string        `json:"city"`
+	State                 string        `json:"state"`
+	Country               string        `json:"country"`
+	Sex                   string        `json:"sex"`
+	Premium               bool          `json:"premium"`
+	CreatedAt             string        `json:"created_at"`
+	UpdatedAt             string        `json:"updated_at"`
+	BadgeTypeID           int           `json:"badge_type_id"`
+	ProfileMedium         string        `json:"profile_medium"`
+	Profile               string        `json:"profile"`
+	Friend                *bool         `json:"friend"`
+	Follower              *bool         `json:"follower"`
+	FollowerCount         int           `json:"follower_count"`
+	FriendCount           int           `json:"friend_count"`
+	MutualFriendCount     int           `json:"mutual_friend_count"`
+	AthleteType           int           `json:"athlete_type"`
+	DatePreference        string        `json:"date_preference"`
+	MeasurementPreference string        `json:"measurement_preference"`
+	Clubs                 []interface{} `json:"clubs"`
+	FTP                   *float64      `json:"ftp"`
+	Weight                float64       `json:"weight"`
+	Bikes                 []Bike        `json:"bikes"`
+	Shoes                 []Shoe        `json:"shoes"`
+}
 
 type ActivityAthlete struct {
 	ID            int64 `json:"id"`
@@ -133,8 +129,8 @@ type DetailedActivity struct {
 	TotalElevationGain float64     `json:"total_elevation_gain"`
 	ElevHigh           float64     `json:"elev_high"`
 	ElevLow            float64     `json:"elev_low"`
-	Type               string      `json:"type"`       // deprecated, prefer SportType
-	SportType          string      `json:"sport_type"` // could be enum if you want
+	Type               string      `json:"type"` // deprecated, prefer SportType
+	SportType          string      `json:"sport_type"`
 	StartDate          string      `json:"start_date"`
 	StartDateLocal     string      `json:"start_date_local"`
 	Timezone           string      `json:"timezone"`
@@ -164,8 +160,44 @@ type DetailedActivity struct {
 	DeviceWatts        bool        `json:"device_watts"`
 	MaxWatts           int         `json:"max_watts"`
 	WeightedAvgWatts   int         `json:"weighted_average_watts"`
-	Description        string
-	Calories           float64 `json:"calories"`
-	DeviceName         string  `json:"device_name"`
-	EmbedToken         string  `json:"embed_token"`
+	Description        string      `json:"description"`
+	Calories           float64     `json:"calories"`
+	DeviceName         string      `json:"device_name"`
+	EmbedToken         string      `json:"embed_token"`
+}
+
+type ActivityStream struct {
+	Type         string        `json:"type"`
+	Data         []interface{} `json:"data"`
+	SeriesType   string        `json:"series_type"`
+	OriginalSize int           `json:"original_size"`
+	Resolution   string        `json:"resolution"`
+}
+
+type TokenResponse struct {
+	TokenType    string  `json:"token_type"`
+	AccessToken  string  `json:"access_token"`
+	RefreshToken string  `json:"refresh_token"`
+	ExpiresAt    int     `json:"expires_at"`
+	ExpiresIn    int     `json:"expires_in"`
+	Athlete      Athlete `json:"athlete"`
+}
+
+type RefreshTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresAt    int    `json:"expires_at"`
+	ExpiresIn    int    `json:"expires_in"`
+}
+
+type RefreshRequest struct {
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	RefreshToken string `json:"refresh_token"`
+	GrantType    string `json:"grant_type"`
+}
+
+// WebhookSubscriptionResponse is Strava's push_subscriptions API response shape.
+type WebhookSubscriptionResponse struct {
+	ID int `json:"id"`
 }

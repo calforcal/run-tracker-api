@@ -1,20 +1,28 @@
+// Command main is the composition root: it loads config, builds every
+// adapter, wires them into the application services, builds the HTTP
+// handlers on top of those services, registers routes, and starts the
+// server. No business logic lives here.
 package main
 
 import (
 	"log"
+
+	"run-tracker-api/api"
 	"run-tracker-api/api/handlers/athlete"
 	"run-tracker-api/api/handlers/auth"
 	"run-tracker-api/api/handlers/home"
 	"run-tracker-api/api/handlers/middleware"
 	"run-tracker-api/api/handlers/user"
 	"run-tracker-api/api/handlers/webhooks"
-	authService "run-tracker-api/internal/auth"
+	"run-tracker-api/internal/adapters/postgres"
+	spotifyadapter "run-tracker-api/internal/adapters/spotify"
+	stravaadapter "run-tracker-api/internal/adapters/strava"
 	"run-tracker-api/internal/config"
-	"run-tracker-api/internal/spotify"
-	"run-tracker-api/internal/storage"
-	"run-tracker-api/internal/strava"
-	"run-tracker-api/internal/users"
-	whs "run-tracker-api/internal/webhooks"
+	activityservice "run-tracker-api/internal/services/activity"
+	authservice "run-tracker-api/internal/services/auth"
+	listeningservice "run-tracker-api/internal/services/listening"
+	userservice "run-tracker-api/internal/services/user"
+	webhookservice "run-tracker-api/internal/services/webhook"
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
@@ -25,59 +33,36 @@ import (
 func main() {
 	e := echo.New()
 
-	err := godotenv.Load()
-	if err != nil {
+	if err := godotenv.Load(); err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
 	logger, _ := zap.NewProduction()
 
-	config := config.New()
+	cfg := config.New()
 
-	storage := storage.New(config, logger)
+	db := postgres.Connect(cfg, logger)
 
-	stravaService := strava.New(config, logger)
-	spotifyService := spotify.New(config, logger)
-	userService := users.New(config, logger, storage, spotifyService)
-	authService := authService.New(config, logger)
-	webhookService := whs.New(config, logger, spotifyService, storage, stravaService, userService)
+	userRepo := postgres.NewUserRepository(db)
+	webhookRepo := postgres.NewWebhookRepository(db)
+	listeningRepo := postgres.NewListeningHistoryRepository(db)
 
-	authMiddleware := middleware.NewAuthMiddleware(config, authService)
+	stravaProvider := stravaadapter.NewProvider(cfg.StravaClientID, cfg.StravaClientSecret, nil)
+	spotifyProvider := spotifyadapter.NewProvider(cfg.SpotifyClientID, cfg.SpotifyClientSecret, nil)
+
+	authSvc := authservice.New(cfg.JwtSecret)
+	userSvc := userservice.New(userRepo, stravaProvider, spotifyProvider)
+	activitySvc := activityservice.New(stravaProvider)
+	listeningSvc := listeningservice.New(spotifyProvider)
+	webhookSvc := webhookservice.New(stravaProvider, spotifyProvider, userRepo, webhookRepo, listeningRepo, cfg.WebhookCallbackURL, cfg.WebhookToken)
+
+	authMiddleware := middleware.NewAuthMiddleware(authSvc)
 
 	homeHandler := home.New()
-	athleteHandler := athlete.New(config, stravaService, userService, logger)
-	authHandler := auth.New(config, stravaService, spotifyService, userService, authService, logger)
-	userHandler := user.New(config, spotifyService, userService, logger)
-
-	wh := webhooks.New(config, logger, webhookService)
-
-	api := e.Group("/api")
-
-	webhook := api.Group("/webhooks")
-	athlete := api.Group("/athlete")
-	user := api.Group("/users")
-
-	webhook.GET("/strava/activity", wh.VerifyWebhookCallback)
-	webhook.POST("/strava/activity", wh.ProcessWebhooks)
-	webhook.POST("/strava", wh.CreateWebhook)
-	webhook.DELETE("/strava", wh.DeleteWebhook)
-	webhook.GET("/strava/view", wh.GetWebhook)
-
-	user.Use(authMiddleware.RunAuthMiddleware())
-
-	user.GET("/listening-history", userHandler.GetListeningHistory)
-
-	athlete.Use(authMiddleware.RunAuthMiddleware())
-	athlete.GET("/activities", athleteHandler.GetAthleteActivities)
-	athlete.GET("/activities/:activity_id", athleteHandler.GetActivityByStravaId)
-	athlete.GET("/activities/:activity_id/stream", athleteHandler.GetActivityStream)
-
-	api.GET("/home", homeHandler.Home)
-	athlete.GET("", athleteHandler.GetAthlete)
-
-	api.POST("/login", authHandler.Login)
-	api.POST("/strava/authorize-user", authHandler.AuthorizeStravaUser)
-	api.POST("/spotify/authorize-user", authHandler.AuthorizeSpotifyUser)
+	athleteHandler := athlete.New(userSvc, activitySvc)
+	authHandler := auth.New(cfg, userSvc, authSvc, logger)
+	userHandler := user.New(userSvc, listeningSvc, logger)
+	webhookHandler := webhooks.New(logger, webhookSvc)
 
 	e.Use(em.Recover())
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -100,7 +85,17 @@ func main() {
 	e.Use(em.CORSWithConfig(em.CORSConfig{
 		AllowOrigins: []string{"http://localhost:5173", "http://127.0.0.1:5173"},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
-		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}, // Specify allowed HTTP methods
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 	}))
+
+	api.RegisterRoutes(e, api.Handlers{
+		Home:           homeHandler,
+		Athlete:        athleteHandler,
+		Auth:           authHandler,
+		User:           userHandler,
+		Webhook:        webhookHandler,
+		AuthMiddleware: authMiddleware,
+	})
+
 	e.Logger.Fatal(e.Start(":8080"))
 }

@@ -2,25 +2,19 @@ package middleware
 
 import (
 	"net/http"
-	"run-tracker-api/internal/auth"
-	"run-tracker-api/internal/config"
 	"strings"
+
+	"run-tracker-api/internal/ports"
 
 	"github.com/labstack/echo/v4"
 )
 
-type (
-	AuthMiddleware struct {
-		config  *config.Config
-		service *auth.AuthService
-	}
-)
+type AuthMiddleware struct {
+	service ports.AuthService
+}
 
-func NewAuthMiddleware(cfg *config.Config, s *auth.AuthService) *AuthMiddleware {
-	return &AuthMiddleware{
-		config:  cfg,
-		service: s,
-	}
+func NewAuthMiddleware(service ports.AuthService) *AuthMiddleware {
+	return &AuthMiddleware{service: service}
 }
 
 func (m *AuthMiddleware) RunAuthMiddleware() echo.MiddlewareFunc {
@@ -32,7 +26,7 @@ func (m *AuthMiddleware) RunAuthMiddleware() echo.MiddlewareFunc {
 			}
 
 			tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-			claims, err := m.service.ParseJWT(tokenStr)
+			claims, err := m.service.ParseToken(c.Request().Context(), tokenStr)
 			if err != nil {
 				return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid token"})
 			}
