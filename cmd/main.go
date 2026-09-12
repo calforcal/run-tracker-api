@@ -34,7 +34,7 @@ func main() {
 	e := echo.New()
 
 	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
+		log.Println("No .env file found, relying on environment variables")
 	}
 
 	logger, _ := zap.NewProduction()
@@ -83,7 +83,7 @@ func main() {
 		}
 	})
 	e.Use(em.CORSWithConfig(em.CORSConfig{
-		AllowOrigins: []string{"http://localhost:5173", "http://127.0.0.1:5173"},
+		AllowOrigins: cfg.CORSAllowedOrigins,
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 	}))
@@ -97,5 +97,5 @@ func main() {
 		AuthMiddleware: authMiddleware,
 	})
 
-	e.Logger.Fatal(e.Start(":8000"))
+	e.Logger.Fatal(e.Start(":" + cfg.Port))
 }

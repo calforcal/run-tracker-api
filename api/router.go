@@ -26,6 +26,8 @@ type Handlers struct {
 
 // RegisterRoutes wires every route onto e.
 func RegisterRoutes(e *echo.Echo, h Handlers) {
+	e.GET("/", h.Home.Home)
+
 	apiGroup := e.Group("/api")
 
 	webhookGroup := apiGroup.Group("/webhooks")
