@@ -12,6 +12,7 @@ type Config struct {
 	StravaClientSecret  string
 	SpotifyClientID     string
 	SpotifyClientSecret string
+	DatabaseURL         string
 	DBHost              string
 	DBPort              string
 	DBUser              string
@@ -34,6 +35,7 @@ func New() *Config {
 		StravaClientSecret:  os.Getenv("STRAVA_CLIENT_SECRET"),
 		SpotifyClientID:     os.Getenv("SPOTIFY_CLIENT_ID"),
 		SpotifyClientSecret: os.Getenv("SPOTIFY_CLIENT_SECRET"),
+		DatabaseURL:         os.Getenv("DATABASE_URL"),
 		DBHost:              os.Getenv("DB_HOST"),
 		DBPort:              os.Getenv("DB_PORT"),
 		DBUser:              os.Getenv("DB_USER"),

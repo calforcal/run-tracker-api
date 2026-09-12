@@ -16,7 +16,10 @@ import (
 // Connect opens a Postgres connection and runs pending goose migrations.
 func Connect(cfg *config.Config, logger *zap.Logger) *sql.DB {
 	logger.Info("Connecting to database...")
-	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBSSLMode)
+	connStr := cfg.DatabaseURL
+	if connStr == "" {
+		connStr = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBSSLMode)
+	}
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		logger.Fatal("error starting database", zap.Error(err))
