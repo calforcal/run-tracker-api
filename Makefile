@@ -6,8 +6,8 @@ CMD    := ./cmd/main.go
 build:
 	go build -o $(BINARY) $(CMD)
 
-run:
-	go run $(CMD)
+run: build
+	$(BINARY)
 
 test:
 	go test ./...
