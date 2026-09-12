@@ -44,9 +44,13 @@ func (s *service) LoginWithStrava(ctx context.Context, code string) (domain.User
 	}
 
 	if user.Spotify != nil {
-		user, err = s.EnsureValidSpotifyToken(ctx, user)
+		refreshed, err := s.EnsureValidSpotifyToken(ctx, user)
 		if err != nil {
-			return domain.User{}, err
+			// A stale/revoked Spotify link shouldn't block Strava login;
+			// fall back to Strava-only and let the user reconnect Spotify.
+			user.Spotify = nil
+		} else {
+			user = refreshed
 		}
 	}
 
