@@ -22,6 +22,7 @@ type Config struct {
 	MigrationsDir       string
 	JwtSecret           string
 	WebhookToken        string
+	WebhookAdminToken   string
 	WebhookCallbackURL  string
 	SpotifyRedirectURI  string
 	CORSAllowedOrigins  []string
@@ -45,6 +46,7 @@ func New() *Config {
 		MigrationsDir:       os.Getenv("GOOSE_MIGRATION_DIR"),
 		JwtSecret:           os.Getenv("JWT_SECRET"),
 		WebhookToken:        os.Getenv("WEBHOOK_TOKEN"),
+		WebhookAdminToken:   os.Getenv("WEBHOOK_ADMIN_TOKEN"),
 		WebhookCallbackURL:  os.Getenv("WEBHOOK_CALLBACK_URL"),
 		SpotifyRedirectURI:  os.Getenv("SPOTIFY_REDIRECT_URI"),
 		CORSAllowedOrigins:  splitAndTrim(envOrDefault("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")),

@@ -16,12 +16,13 @@ import (
 // Handlers bundles every HTTP handler and the auth middleware needed to
 // register routes.
 type Handlers struct {
-	Home           *home.HomeHandler
-	Athlete        *athlete.AthleteHandler
-	Auth           *auth.AuthHandler
-	User           *user.UserHandler
-	Webhook        *webhooks.WebhookHandler
-	AuthMiddleware *middleware.AuthMiddleware
+	Home            *home.HomeHandler
+	Athlete         *athlete.AthleteHandler
+	Auth            *auth.AuthHandler
+	User            *user.UserHandler
+	Webhook         *webhooks.WebhookHandler
+	AuthMiddleware  *middleware.AuthMiddleware
+	AdminMiddleware *middleware.AdminMiddleware
 }
 
 // RegisterRoutes wires every route onto e.
@@ -36,9 +37,12 @@ func RegisterRoutes(e *echo.Echo, h Handlers) {
 
 	webhookGroup.GET("/strava/activity", h.Webhook.VerifyWebhookCallback)
 	webhookGroup.POST("/strava/activity", h.Webhook.ProcessWebhooks)
-	webhookGroup.POST("/strava", h.Webhook.CreateWebhook)
-	webhookGroup.DELETE("/strava", h.Webhook.DeleteWebhook)
-	webhookGroup.GET("/strava/view", h.Webhook.GetWebhook)
+
+	webhookAdminGroup := webhookGroup.Group("/strava")
+	webhookAdminGroup.Use(h.AdminMiddleware.RunAdminMiddleware())
+	webhookAdminGroup.POST("", h.Webhook.CreateWebhook)
+	webhookAdminGroup.DELETE("", h.Webhook.DeleteWebhook)
+	webhookAdminGroup.GET("/view", h.Webhook.GetWebhook)
 
 	userGroup.Use(h.AuthMiddleware.RunAuthMiddleware())
 	userGroup.GET("/listening-history", h.User.GetListeningHistory)

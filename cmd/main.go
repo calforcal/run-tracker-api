@@ -57,6 +57,7 @@ func main() {
 	webhookSvc := webhookservice.New(stravaProvider, spotifyProvider, userRepo, webhookRepo, listeningRepo, cfg.WebhookCallbackURL, cfg.WebhookToken)
 
 	authMiddleware := middleware.NewAuthMiddleware(authSvc)
+	adminMiddleware := middleware.NewAdminMiddleware(cfg.WebhookAdminToken)
 
 	homeHandler := home.New()
 	athleteHandler := athlete.New(userSvc, activitySvc)
@@ -89,12 +90,13 @@ func main() {
 	}))
 
 	api.RegisterRoutes(e, api.Handlers{
-		Home:           homeHandler,
-		Athlete:        athleteHandler,
-		Auth:           authHandler,
-		User:           userHandler,
-		Webhook:        webhookHandler,
-		AuthMiddleware: authMiddleware,
+		Home:            homeHandler,
+		Athlete:         athleteHandler,
+		Auth:            authHandler,
+		User:            userHandler,
+		Webhook:         webhookHandler,
+		AuthMiddleware:  authMiddleware,
+		AdminMiddleware: adminMiddleware,
 	})
 
 	e.Logger.Fatal(e.Start(":" + cfg.Port))
