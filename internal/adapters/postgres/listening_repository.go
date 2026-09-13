@@ -63,7 +63,11 @@ func (r *listeningHistoryRepository) getOrCreateSong(ctx context.Context, song d
 }
 
 func (r *listeningHistoryRepository) saveUserSong(ctx context.Context, userID, activityID, songID int, playedAt time.Time) error {
-	query := `INSERT INTO user_activity_songs (user_id, activity_id, song_id, played_at) VALUES ($1, $2, $3, $4)`
+	query := `
+		INSERT INTO user_activity_songs (user_id, activity_id, song_id, played_at)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id, song_id, played_at) DO NOTHING
+	`
 	_, err := r.db.ExecContext(ctx, query, userID, activityID, songID, playedAt)
 	if err != nil {
 		return fmt.Errorf("error writing user song to database: %w", err)

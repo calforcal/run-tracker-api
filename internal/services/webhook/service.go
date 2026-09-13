@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"run-tracker-api/internal/domain"
 	"run-tracker-api/internal/ports"
@@ -117,13 +118,19 @@ func (s *service) ProcessEvent(ctx context.Context, event domain.WebhookEvent) e
 	}
 
 	afterMs := activity.StartDate.UnixMilli()
+	activityEnd := activity.StartDate.Add(time.Duration(activity.ElapsedTime) * time.Second)
 
+	// Spotify's recently-played endpoint won't accept both after and before
+	// in the same request, so the upper bound is enforced here instead.
 	history, err := s.spotifyProvider.GetListeningHistory(ctx, user.Spotify.AccessToken, afterMs)
 	if err != nil {
 		return fmt.Errorf("error getting user listening history: %w", err)
 	}
 
 	for _, item := range history {
+		if item.PlayedAt.After(activityEnd) {
+			continue
+		}
 		if err := s.listeningRepo.SaveEntry(ctx, user.ID, event.ObjectID, item); err != nil {
 			return fmt.Errorf("error saving user listening history in database: %w", err)
 		}

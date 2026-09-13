@@ -1,7 +1,9 @@
 package webhooks
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"run-tracker-api/api/dto"
 	"run-tracker-api/internal/ports"
@@ -9,6 +11,10 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
+
+// processTimeout bounds how long a background webhook processing job may
+// run once detached from the originating request.
+const processTimeout = 30 * time.Second
 
 type WebhookHandler struct {
 	logger         *zap.Logger
@@ -26,10 +32,23 @@ func (h *WebhookHandler) ProcessWebhooks(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request format"})
 	}
 
-	if err := h.webhookService.ProcessEvent(c.Request().Context(), event.ToDomain()); err != nil {
-		h.logger.Error("error processing webhook", zap.Error(err))
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error processing webhook"})
-	}
+	domainEvent := event.ToDomain()
+	detachedCtx := context.WithoutCancel(c.Request().Context())
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				h.logger.Error("panic while processing webhook", zap.Any("panic", r))
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(detachedCtx, processTimeout)
+		defer cancel()
+
+		if err := h.webhookService.ProcessEvent(ctx, domainEvent); err != nil {
+			h.logger.Error("error processing webhook", zap.Error(err))
+		}
+	}()
 
 	return c.JSON(http.StatusOK, nil)
 }
