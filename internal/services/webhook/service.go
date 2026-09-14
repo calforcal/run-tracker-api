@@ -53,8 +53,12 @@ func New(
 
 var _ ports.WebhookService = (*service)(nil)
 
-func (s *service) CreateSubscription(ctx context.Context) (domain.WebhookSubscription, error) {
-	sub, err := s.stravaProvider.CreateWebhookSubscription(ctx, s.callbackURL, s.verifyToken)
+func (s *service) CreateSubscription(ctx context.Context, callbackURL string) (domain.WebhookSubscription, error) {
+	if callbackURL == "" {
+		callbackURL = s.callbackURL
+	}
+
+	sub, err := s.stravaProvider.CreateWebhookSubscription(ctx, callbackURL, s.verifyToken)
 	if err != nil {
 		return domain.WebhookSubscription{}, fmt.Errorf("problem creating webhook: %w", err)
 	}

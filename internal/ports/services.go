@@ -38,7 +38,7 @@ type ListeningService interface {
 // WebhookService manages the Strava push-subscription lifecycle and
 // correlates incoming activity events with Spotify listening history.
 type WebhookService interface {
-	CreateSubscription(ctx context.Context) (domain.WebhookSubscription, error)
+	CreateSubscription(ctx context.Context, callbackURL string) (domain.WebhookSubscription, error)
 	ListStravaSubscriptions(ctx context.Context) ([]domain.WebhookSubscription, error)
 	DeleteSubscription(ctx context.Context) error
 	VerifyCallback(ctx context.Context, hubMode, hubChallenge, hubVerifyToken string) (string, error)

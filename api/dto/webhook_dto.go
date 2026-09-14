@@ -35,6 +35,12 @@ func (r WebhookEventRequest) ToDomain() domain.WebhookEvent {
 	}
 }
 
+// CreateWebhookRequest optionally overrides the configured default callback
+// URL for the subscription Strava will be told to notify.
+type CreateWebhookRequest struct {
+	CallbackURL string `json:"callback_url"`
+}
+
 // WebhookSubscriptionResponse mirrors Strava's push_subscriptions response shape.
 type WebhookSubscriptionResponse struct {
 	ID int `json:"id"`

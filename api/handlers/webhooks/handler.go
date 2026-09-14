@@ -2,7 +2,10 @@ package webhooks
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"run-tracker-api/api/dto"
@@ -53,8 +56,23 @@ func (h *WebhookHandler) ProcessWebhooks(c echo.Context) error {
 	return c.JSON(http.StatusOK, nil)
 }
 
+// CreateWebhook registers a Strava push-subscription. The request body is
+// optional; when it omits callback_url (or is empty), the configured
+// default callback URL is used instead.
 func (h *WebhookHandler) CreateWebhook(c echo.Context) error {
-	sub, err := h.webhookService.CreateSubscription(c.Request().Context())
+	var req dto.CreateWebhookRequest
+	if err := c.Bind(&req); err != nil && !errors.Is(err, io.EOF) {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request body"})
+	}
+
+	if req.CallbackURL != "" {
+		parsed, err := url.ParseRequestURI(req.CallbackURL)
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+			return c.JSON(http.StatusBadRequest, echo.Map{"error": "callback_url must be a valid https URL"})
+		}
+	}
+
+	sub, err := h.webhookService.CreateSubscription(c.Request().Context(), req.CallbackURL)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "problem creating webhook: " + err.Error()})
 	}
