@@ -53,14 +53,14 @@ func main() {
 	authSvc := authservice.New(cfg.JwtSecret)
 	userSvc := userservice.New(userRepo, stravaProvider, spotifyProvider)
 	activitySvc := activityservice.New(stravaProvider)
-	listeningSvc := listeningservice.New(spotifyProvider)
+	listeningSvc := listeningservice.New(spotifyProvider, listeningRepo)
 	webhookSvc := webhookservice.New(stravaProvider, spotifyProvider, userRepo, webhookRepo, listeningRepo, cfg.WebhookCallbackURL, cfg.WebhookToken)
 
 	authMiddleware := middleware.NewAuthMiddleware(authSvc)
 	adminMiddleware := middleware.NewAdminMiddleware(cfg.WebhookAdminToken)
 
 	homeHandler := home.New()
-	athleteHandler := athlete.New(userSvc, activitySvc)
+	athleteHandler := athlete.New(userSvc, activitySvc, listeningSvc)
 	authHandler := auth.New(cfg, userSvc, authSvc, logger)
 	userHandler := user.New(userSvc, listeningSvc, logger)
 	webhookHandler := webhooks.New(logger, webhookSvc)

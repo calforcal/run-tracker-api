@@ -35,6 +35,39 @@ func (r *listeningHistoryRepository) SaveEntry(ctx context.Context, userID int, 
 	return nil
 }
 
+func (r *listeningHistoryRepository) GetForActivity(ctx context.Context, userID, activityID int) ([]domain.ListeningHistoryItem, error) {
+	query := `
+		SELECT s.title, s.artist, s.album_title, s.duration, s.image_url, s.song_uri, s.spotify_id, uas.played_at
+		FROM user_activity_songs uas
+		JOIN songs s ON s.id = uas.song_id
+		WHERE uas.user_id = $1 AND uas.activity_id = $2
+		ORDER BY uas.played_at ASC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, userID, activityID)
+	if err != nil {
+		return nil, fmt.Errorf("error reading listening history for activity: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]domain.ListeningHistoryItem, 0)
+	for rows.Next() {
+		var item domain.ListeningHistoryItem
+		if err := rows.Scan(
+			&item.Song.Title, &item.Song.Artist, &item.Song.AlbumTitle, &item.Song.DurationMs,
+			&item.Song.ImageURL, &item.Song.SongURI, &item.Song.SpotifyID, &item.PlayedAt,
+		); err != nil {
+			return nil, fmt.Errorf("error scanning listening history row: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating listening history rows: %w", err)
+	}
+
+	return items, nil
+}
+
 func (r *listeningHistoryRepository) getOrCreateSong(ctx context.Context, song domain.Song) (domain.Song, error) {
 	query := `
 		INSERT INTO songs (title, artist, album_title, duration, image_url, song_uri, spotify_id)

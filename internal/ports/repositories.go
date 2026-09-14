@@ -29,4 +29,5 @@ type WebhookRepository interface {
 // correlated to the Strava activity it was played during.
 type ListeningHistoryRepository interface {
 	SaveEntry(ctx context.Context, userID int, activityID int, item domain.ListeningHistoryItem) error
+	GetForActivity(ctx context.Context, userID, activityID int) ([]domain.ListeningHistoryItem, error)
 }

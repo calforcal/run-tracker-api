@@ -3,20 +3,23 @@ package athlete
 import (
 	"database/sql"
 	"net/http"
+	"strconv"
 
 	"run-tracker-api/api/dto"
+	"run-tracker-api/internal/domain"
 	"run-tracker-api/internal/ports"
 
 	"github.com/labstack/echo/v4"
 )
 
 type AthleteHandler struct {
-	userService     ports.UserService
-	activityService ports.ActivityService
+	userService      ports.UserService
+	activityService  ports.ActivityService
+	listeningService ports.ListeningService
 }
 
-func New(userService ports.UserService, activityService ports.ActivityService) *AthleteHandler {
-	return &AthleteHandler{userService: userService, activityService: activityService}
+func New(userService ports.UserService, activityService ports.ActivityService, listeningService ports.ListeningService) *AthleteHandler {
+	return &AthleteHandler{userService: userService, activityService: activityService, listeningService: listeningService}
 }
 
 func (h *AthleteHandler) GetAthlete(c echo.Context) error {
@@ -77,7 +80,15 @@ func (h *AthleteHandler) GetActivityByStravaId(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
 	}
 
-	return c.JSON(http.StatusOK, dto.DetailedActivityFromDomain(activity))
+	songs := []domain.ListeningHistoryItem{}
+	if activityIDInt, parseErr := strconv.Atoi(activityId); parseErr == nil {
+		songs, err = h.listeningService.GetHistoryForActivity(ctx, user.ID, activityIDInt)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
+		}
+	}
+
+	return c.JSON(http.StatusOK, dto.DetailedActivityFromDomain(activity, songs))
 }
 
 func (h *AthleteHandler) GetActivityStream(c echo.Context) error {

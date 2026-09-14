@@ -11,15 +11,20 @@ import (
 
 type service struct {
 	spotifyProvider ports.SpotifyProvider
+	listeningRepo   ports.ListeningHistoryRepository
 }
 
 // New builds a ports.ListeningService.
-func New(spotifyProvider ports.SpotifyProvider) ports.ListeningService {
-	return &service{spotifyProvider: spotifyProvider}
+func New(spotifyProvider ports.SpotifyProvider, listeningRepo ports.ListeningHistoryRepository) ports.ListeningService {
+	return &service{spotifyProvider: spotifyProvider, listeningRepo: listeningRepo}
 }
 
 var _ ports.ListeningService = (*service)(nil)
 
 func (s *service) GetListeningHistory(ctx context.Context, accessToken string, after int64) ([]domain.ListeningHistoryItem, error) {
 	return s.spotifyProvider.GetListeningHistory(ctx, accessToken, after)
+}
+
+func (s *service) GetHistoryForActivity(ctx context.Context, userID, activityID int) ([]domain.ListeningHistoryItem, error) {
+	return s.listeningRepo.GetForActivity(ctx, userID, activityID)
 }

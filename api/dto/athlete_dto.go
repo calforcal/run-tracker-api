@@ -291,9 +291,12 @@ type DetailedActivityResponse struct {
 	Calories    float64 `json:"calories"`
 	DeviceName  string  `json:"device_name"`
 	EmbedToken  string  `json:"embed_token"`
+	// Songs is the Spotify listening history correlated to this activity by
+	// the webhook pipeline. Empty (never null) when nothing was found.
+	Songs []ListeningHistoryItemResponse `json:"songs"`
 }
 
-func DetailedActivityFromDomain(a domain.DetailedActivity) DetailedActivityResponse {
+func DetailedActivityFromDomain(a domain.DetailedActivity, songs []domain.ListeningHistoryItem) DetailedActivityResponse {
 	return DetailedActivityResponse{
 		ID:                 a.ID,
 		ExternalID:         a.ExternalID,
@@ -343,6 +346,7 @@ func DetailedActivityFromDomain(a domain.DetailedActivity) DetailedActivityRespo
 		Calories:         a.Calories,
 		DeviceName:       a.DeviceName,
 		EmbedToken:       a.EmbedToken,
+		Songs:            ListeningHistoryFromDomain(songs).Items,
 	}
 }
 

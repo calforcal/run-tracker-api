@@ -33,6 +33,7 @@ type ActivityService interface {
 // ListeningService exposes a user's Spotify listening history.
 type ListeningService interface {
 	GetListeningHistory(ctx context.Context, accessToken string, after int64) ([]domain.ListeningHistoryItem, error)
+	GetHistoryForActivity(ctx context.Context, userID, activityID int) ([]domain.ListeningHistoryItem, error)
 }
 
 // WebhookService manages the Strava push-subscription lifecycle and
