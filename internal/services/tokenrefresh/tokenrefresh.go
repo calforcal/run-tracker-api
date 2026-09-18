@@ -50,6 +50,14 @@ func EnsureValidSpotifyToken(ctx context.Context, user domain.User, repo ports.U
 	}
 	// The refresh response doesn't carry the Spotify user id back.
 	creds.SpotifyID = user.Spotify.SpotifyID
+	// Spotify doesn't always return a new refresh_token on refresh - when a
+	// client's token hasn't been rotated, the field is simply omitted. The
+	// existing refresh token is still valid in that case and must be kept;
+	// overwriting it with the resulting empty string would permanently break
+	// every future refresh for this user.
+	if creds.RefreshToken == "" {
+		creds.RefreshToken = user.Spotify.RefreshToken
+	}
 
 	return repo.UpdateSpotifyCredentials(ctx, user.Spotify.SpotifyID, creds)
 }
